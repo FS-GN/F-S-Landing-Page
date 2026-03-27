@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fisheries &amp; Sealing Division — Government of Nunavut</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* GN Visual Identity: Pantone 301 Blue (CMYK 100,43,0,18.5) */
+      --gn-blue: #0054A4;
+      --gn-blue-dark: #003D7A;
+      --gn-blue-light: #3378B8;
+      --gn-blue-pale: #E8F0F8;
+      --gn-blue-wash: #F2F7FC;
+      --black: #000000;
+      --text: #1A1A1A;
+      --text-sec: #4A4A4A;
+      --text-muted: #6B7280;
+      --white: #FFFFFF;
+      --line: #D1D5DB;
+      --line-blue: #B0C9E2;
+      --bg: #FAFBFC;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      /* GN Identity: Arial for all English text */
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--black);
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ═══════════════════════════════════════
+       HEADER — Pantone 301 Blue
+       ═══════════════════════════════════════ */
+    .site-header {
+      background: var(--gn-blue);
+      color: var(--white);
+    }
+    .site-header::after {
+      content: '';
+      display: block;
+      height: 3px;
+      background: linear-gradient(90deg, var(--gn-blue-dark), var(--gn-blue-light), var(--gn-blue-dark));
+    }
+    .header-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .header-brand {
+      padding: 16px 0 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .header-logo {
+      width: 50px;
+      height: 50px;
+      background: var(--white);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    /* Replace this SVG with official GN polar bear symbol:
+       <img src="images/gn-symbol-wordmark.png" alt="Government of Nunavut" style="height:46px;width:auto" /> */
+    .header-logo svg { width: 36px; height: 36px; }
+    .header-dept {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+      font-weight: bold;
+      margin-bottom: 1px;
+    }
+    .header-title {
+      font-size: clamp(18px, 3vw, 24px);
+      font-weight: bold;
+      line-height: 1.25;
+    }
+
+    /* ── PORTAL NAV ── */
+    .portal-nav {
+      display: flex;
+      gap: 1px;
+      margin-top: 14px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .portal-nav::-webkit-scrollbar { display: none; }
+    .portal-nav button {
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: rgba(255,255,255,0.5);
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: bold;
+      font-family: Arial, Helvetica, sans-serif;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .portal-nav button:hover {
+      color: rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.06);
+    }
+    .portal-nav button.active {
+      background: rgba(255,255,255,0.1);
+      border-bottom-color: var(--white);
+      color: var(--white);
+    }
+
+    /* ═══════════════════════════════════════
+       MAIN CONTENT
+       ═══════════════════════════════════════ */
+    .main-content {
+      flex: 1;
+      max-width: 1160px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 24px 60px;
+    }
+
+    /* ── SECTION COMMON ── */
+    .section {
+      padding: 36px 0 0;
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--gn-blue);
+      margin-bottom: 6px;
+    }
+    /* GN Identity: blue horizontal rule under section headings */
+    .section-rule {
+      width: 50px;
+      height: 2.5px;
+      background: var(--gn-blue);
+      margin-bottom: 20px;
+      border: none;
+    }
+    .section-desc {
+      font-size: 14px;
+      color: var(--text-sec);
+      line-height: 1.7;
+      max-width: 720px;
+    }
+
+    /* ═══════════════════════════════════════
+       ABOUT THE DIVISION
+       ═══════════════════════════════════════ */
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .about-text {
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.75;
+    }
+    .about-text p { margin-bottom: 14px; }
+    .about-text a { color: var(--gn-blue); font-weight: bold; text-decoration: none; }
+    .about-text a:hover { text-decoration: underline; }
+    .about-sidebar {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 22px;
+    }
+    .about-sidebar h4 {
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--gn-blue);
+      margin-bottom: 14px;
+    }
+    .about-sidebar h4::after {
+      content: '';
+      display: block;
+      width: 30px;
+      height: 2px;
+      background: var(--gn-blue);
+      margin-top: 6px;
+    }
+    .contact-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.6;
+      margin-bottom: 12px;
+    }
+    .contact-row .icon {
+      flex-shrink: 0;
+      width: 20px;
+      text-align: center;
+      color: var(--gn-blue);
+      font-size: 14px;
+      margin-top: 1px;
+    }
+    .contact-row a { color: var(--gn-blue); font-weight: bold; text-decoration: none; }
+    .contact-row a:hover { text-decoration: underline; }
+
+    /* ═══════════════════════════════════════
+       NEWS & ANNOUNCEMENTS + QUICK LINKS
+       ═══════════════════════════════════════ */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 24px;
+      margin-top: 20px;
+    }
+
+    /* News */
+    .news-list { display: flex; flex-direction: column; gap: 14px; }
+    .news-item {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 18px 20px;
+      transition: border-color 0.15s;
+    }
+    .news-item:hover { border-color: var(--gn-blue); }
+    .news-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .news-date {
+      font-size: 11px;
+      font-weight: bold;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+    }
+    .news-badge {
+      font-size: 10px;
+      font-weight: bold;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 3px;
+      background: var(--gn-blue-pale);
+      color: var(--gn-blue);
+    }
+    .news-badge.pinned {
+      background: #FFF3CD;
+      color: #7A5200;
+    }
+    .news-title {
+      font-size: 15px;
+      font-weight: bold;
+      color: var(--text);
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+    .news-body {
+      font-size: 13px;
+      color: var(--text-sec);
+      line-height: 1.6;
+    }
+
+    /* Quick Links / Key Dates */
+    .sidebar-panel {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      background: var(--gn-blue);
+      color: var(--white);
+      padding: 14px 18px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .sidebar-body { padding: 0; }
+    .sidebar-section-title {
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 14px 18px 6px;
+    }
+    .quick-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--gn-blue);
+      text-decoration: none;
+      border-bottom: 1px solid var(--line);
+      transition: background 0.1s;
+    }
+    .quick-link:last-child { border-bottom: none; }
+    .quick-link:hover { background: var(--gn-blue-wash); }
+    .quick-link .ql-icon { flex-shrink: 0; font-size: 14px; }
+    .quick-link .ql-arrow { margin-left: auto; color: var(--line); font-size: 12px; }
+
+    .date-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .date-item:last-child { border-bottom: none; }
+    .date-pip {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--gn-blue);
+      flex-shrink: 0;
+      margin-top: 5px;
+    }
+    .date-pip.urgent { background: #C0392B; }
+    .date-label {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.4;
+    }
+    .date-label strong { color: var(--black); }
+    .date-label .date-when {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: bold;
+      margin-top: 1px;
+    }
+
+    /* ═══════════════════════════════════════
+       PORTAL CARDS
+       ═══════════════════════════════════════ */
+    .portal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+      margin-top: 20px;
+    }
+    .portal-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      overflow: hidden;
+      text-align: left;
+      font-family: inherit;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+    .portal-card:hover {
+      border-color: var(--gn-blue);
+      box-shadow: 0 4px 20px rgba(0,84,164,0.12);
+      transform: translateY(-1px);
+    }
+    .portal-card-accent { height: 4px; background: var(--gn-blue); }
+    .portal-card-body {
+      padding: 22px 22px 20px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .portal-card-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 21px;
+      margin-bottom: 14px;
+      background: var(--gn-blue-pale);
+    }
+    .portal-card-label {
+      font-size: 10px;
+      font-weight: bold;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .portal-card h3 {
+      font-size: 17px;
+      font-weight: bold;
+      color: var(--gn-blue);
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+    .portal-card p {
+      font-size: 13px;
+      color: var(--text-sec);
+      line-height: 1.6;
+      flex: 1;
+    }
+    .portal-card-arrow {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--gn-blue);
+    }
+    .portal-card:hover .portal-card-arrow { gap: 10px; }
+    .portal-card-arrow svg { transition: transform 0.2s; }
+    .portal-card:hover .portal-card-arrow svg { transform: translateX(3px); }
+
+    /* ═══════════════════════════════════════
+       IFRAME VIEW
+       ═══════════════════════════════════════ */
+    .portal-frame-wrapper {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      /* Override main-content padding when iframe is active */
+      margin: 0 -24px -60px;
+    }
+    .portal-frame-wrapper.active { display: flex; }
+    .portal-back-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 24px;
+      background: var(--gn-blue-pale);
+      border-bottom: 2px solid var(--gn-blue);
+    }
+    .portal-back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--white);
+      border: 1px solid var(--line-blue);
+      border-radius: 4px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: bold;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--gn-blue);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .portal-back-btn:hover {
+      background: var(--gn-blue);
+      color: var(--white);
+      border-color: var(--gn-blue);
+    }
+    .portal-frame-title {
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--gn-blue-dark);
+    }
+    .portal-iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+      min-height: 80vh;
+    }
+
+    /* ═══════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════ */
+    .site-footer {
+      background: var(--white);
+      border-top: 3px solid var(--gn-blue);
+    }
+    .footer-tabs {
+      display: flex;
+      justify-content: center;
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .footer-tabs::-webkit-scrollbar { display: none; }
+    .footer-tab {
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      padding: 13px 22px;
+      font-size: 13px;
+      font-weight: bold;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .footer-tab:hover { color: var(--gn-blue); background: var(--gn-blue-wash); }
+    .footer-tab.active { color: var(--gn-blue); border-bottom-color: var(--gn-blue); }
+
+    .footer-content {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 28px 24px 36px;
+      display: none;
+    }
+    .footer-content.active { display: block; }
+    .footer-content h4 {
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--gn-blue);
+      margin-bottom: 16px;
+    }
+    .footer-content h4::after {
+      content: '';
+      display: block;
+      width: 40px;
+      height: 2px;
+      background: var(--gn-blue);
+      margin-top: 8px;
+    }
+    .footer-content p { font-size: 14px; color: var(--text); line-height: 1.75; margin-bottom: 12px; }
+    .footer-content h5 { font-size: 14px; font-weight: bold; color: var(--black); margin: 20px 0 8px; }
+    .footer-content ul { padding-left: 20px; margin-bottom: 14px; }
+    .footer-content li { font-size: 14px; color: var(--text); line-height: 1.7; margin-bottom: 4px; }
+    .footer-content a { color: var(--gn-blue); text-decoration: none; font-weight: bold; }
+    .footer-content a:hover { text-decoration: underline; }
+    .footer-contact-block {
+      background: var(--gn-blue-pale);
+      border: 1px solid var(--line-blue);
+      border-radius: 4px;
+      padding: 16px 20px;
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.7;
+    }
+    .footer-bottom {
+      text-align: center;
+      padding: 18px 24px;
+      border-top: 1px solid var(--line);
+      background: var(--gn-blue-wash);
+    }
+    .footer-bottom-text { font-size: 11px; color: var(--text-muted); line-height: 1.7; }
+    .footer-bottom a { color: var(--gn-blue); text-decoration: none; font-weight: bold; }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    .animate-in { animation: fadeUp 0.35s ease forwards; opacity: 0; }
+    .portal-card:nth-child(1) { animation-delay: 0.04s; }
+    .portal-card:nth-child(2) { animation-delay: 0.08s; }
+    .portal-card:nth-child(3) { animation-delay: 0.12s; }
+    .portal-card:nth-child(4) { animation-delay: 0.16s; }
+    .portal-card:nth-child(5) { animation-delay: 0.20s; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .two-col { grid-template-columns: 1fr; }
+      .about-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      .portal-grid { grid-template-columns: 1fr; }
+      .portal-nav button { padding: 9px 12px; font-size: 12px; }
+      .footer-tab { padding: 11px 14px; font-size: 12px; }
+      .main-content { padding: 0 16px 40px; }
+      .header-inner { padding: 0 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════
+       HEADER
+       ═══════════════════════════════════════════════ -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <div class="header-logo">
+          <!-- PLACEHOLDER: Replace with official GN polar bear symbol + wordmark
+               <img src="images/gn-symbol-wordmark.png" alt="Government of Nunavut" style="height:46px;width:auto" /> -->
+          <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="30" cy="30" r="28" fill="#0054A4"/>
+            <path d="M16 40c2-9 7-15 14-17 5-1 9 0 12 3s4 6 2 10c-2 4-6 7-10 8-3 1-7 0-9-2l-3 5" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="43" cy="13" r="3.5" fill="#fff"/>
+            <line x1="43" y1="9" x2="43" y2="17" stroke="#0054A4" stroke-width="1"/>
+            <line x1="39" y1="13" x2="47" y2="13" stroke="#0054A4" stroke-width="1"/>
+            <line x1="40.5" y1="10.5" x2="45.5" y2="15.5" stroke="#0054A4" stroke-width="0.8"/>
+            <line x1="45.5" y1="10.5" x2="40.5" y2="15.5" stroke="#0054A4" stroke-width="0.8"/>
+          </svg>
+        </div>
+        <div>
+          <div class="header-dept">Government of Nunavut · Department of Community Services</div>
+          <div class="header-title">Fisheries &amp; Sealing Division</div>
+        </div>
+      </div>
+      <nav class="portal-nav" id="portalNav">
+        <button class="active" data-portal="home">Home</button>
+        <button data-portal="funding">Funding Finder</button>
+        <button data-portal="cffs">Freight Subsidy</button>
+        <button data-portal="fddp">Development Program</button>
+        <button data-portal="sealfur">Seal &amp; Fur</button>
+        <button data-portal="nuliajuk">RV Nuliajuk</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════
+       MAIN CONTENT
+       ═══════════════════════════════════════════════ -->
+  <main class="main-content" id="mainContent">
+
+    <!-- ─── HOME VIEW ─── -->
+    <div id="view-home">
+
+      <!-- ════════════════════════════════════
+           SECTION 1: ABOUT THE DIVISION
+           ════════════════════════════════════ -->
+      <div class="section">
+        <h2 class="section-title">About the Division</h2>
+        <hr class="section-rule" />
+        <div class="about-grid">
+          <div class="about-text">
+            <!-- EDIT: Update this text to reflect current mandate and priorities -->
+            <p>The Fisheries &amp; Sealing Division supports the sustainable development of Nunavut's fisheries, sealing, and marine resources. Operating under the Department of Community Services, the Division delivers programs that strengthen harvesting capacity, expand commercial fisheries, and support Nunavummiut who depend on the land and sea.</p>
+            <p>Our programs serve individual harvesters, Hunters and Trappers Organizations (HTOs), Inuit organizations, businesses, and researchers across the Qikiqtaaluk, Kivalliq, and Kitikmeot regions. We administer funding programs, coordinate the RV Nuliajuk research vessel, and work closely with communities on fisheries management and development.</p>
+            <p>For more information, visit <a href="https://www.gov.nu.ca/en/industry/fisheries-and-sealing" target="_blank" rel="noopener">gov.nu.ca/en/industry/fisheries-and-sealing</a>.</p>
+          </div>
+          <div class="about-sidebar">
+            <h4>Contact Us</h4>
+            <div class="contact-row">
+              <span class="icon">&#9993;</span>
+              <div>General Inquiries<br><a href="mailto:fisheries@gov.nu.ca">fisheries@gov.nu.ca</a></div>
+            </div>
+            <div class="contact-row">
+              <span class="icon">&#9993;</span>
+              <div>Seal &amp; Fur Programs<br><a href="mailto:sealandfur@gov.nu.ca">sealandfur@gov.nu.ca</a></div>
+            </div>
+            <div class="contact-row">
+              <span class="icon">&#9993;</span>
+              <div>RV Nuliajuk<br><a href="mailto:nuliajuk@gov.nu.ca">nuliajuk@gov.nu.ca</a></div>
+            </div>
+            <div class="contact-row">
+              <span class="icon">&#9742;</span>
+              <div>Phone<br><strong>867-975-7700</strong></div>
+            </div>
+            <div class="contact-row">
+              <span class="icon">&#9961;</span>
+              <div>Mailing Address<br>P.O. Box 1000, Station 1540<br>Iqaluit, NU X0A 0H0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════
+           SECTION 2: NEWS + QUICK LINKS
+           ════════════════════════════════════ -->
+      <div class="section">
+        <div class="two-col">
+          <!-- NEWS & ANNOUNCEMENTS -->
+          <div>
+            <h2 class="section-title">News &amp; Announcements</h2>
+            <hr class="section-rule" />
+            <div class="news-list">
+
+              <!--
+                ╔══════════════════════════════════════════════════════╗
+                ║  HOW TO EDIT NEWS ITEMS:                            ║
+                ║  Copy a news-item block below and change the date,  ║
+                ║  title, body text, and badge. Add "pinned" class    ║
+                ║  to the badge for important items. Remove old items ║
+                ║  by deleting the entire <div class="news-item">     ║
+                ║  block. Most recent items should appear first.      ║
+                ╚══════════════════════════════════════════════════════╝
+              -->
+
+              <div class="news-item">
+                <div class="news-meta">
+                  <span class="news-date">March 15, 2026</span>
+                  <span class="news-badge pinned">Important</span>
+                </div>
+                <div class="news-title">2026–27 FDDP Application Period Now Open</div>
+                <div class="news-body">Applications for the Fisheries Development &amp; Diversification Program are being accepted for the 2026–27 fiscal year. Deadline: April 30, 2026. Apply through the Development Program portal above.</div>
+              </div>
+
+              <div class="news-item">
+                <div class="news-meta">
+                  <span class="news-date">March 10, 2026</span>
+                  <span class="news-badge pinned">Important</span>
+                </div>
+                <div class="news-title">RV Nuliajuk — 2026 Call for Proposals Open</div>
+                <div class="news-body">Expressions of Interest are due March 31, 2026. Full research proposals are due April 30, 2026. The 2026 season runs July through October. Visit the RV Nuliajuk portal for details.</div>
+              </div>
+
+              <div class="news-item">
+                <div class="news-meta">
+                  <span class="news-date">February 28, 2026</span>
+                  <span class="news-badge">Update</span>
+                </div>
+                <div class="news-title">Commercial Fisheries Freight Subsidy — New Claims Process</div>
+                <div class="news-body">The CFFS claims process has been updated. Applicants can now submit waybills and invoices digitally through the Freight Subsidy portal. Paper submissions are still accepted by mail.</div>
+              </div>
+
+              <div class="news-item">
+                <div class="news-meta">
+                  <span class="news-date">February 15, 2026</span>
+                  <span class="news-badge">Vessel</span>
+                </div>
+                <div class="news-title">RV Nuliajuk Multibeam Sonar Upgraded</div>
+                <div class="news-body">The Kongsberg EM2040C multibeam sonar aboard the RV Nuliajuk has completed its annual calibration and firmware upgrade ahead of the 2026 research season.</div>
+              </div>
+
+              <div class="news-item">
+                <div class="news-meta">
+                  <span class="news-date">January 20, 2026</span>
+                  <span class="news-badge">Report</span>
+                </div>
+                <div class="news-title">2025 Season Summary — RV Nuliajuk</div>
+                <div class="news-body">Five research programs were completed across 78 vessel-days during the 2025 open-water season, covering Cumberland Sound, Davis Strait, and Frobisher Bay.</div>
+              </div>
+
+              <!-- END NEWS ITEMS -->
+
+            </div>
+          </div>
+
+          <!-- QUICK LINKS / KEY DATES -->
+          <div>
+            <h2 class="section-title">Quick Links &amp; Key Dates</h2>
+            <hr class="section-rule" />
+            <div class="sidebar-panel">
+              <div class="sidebar-header">Key Dates</div>
+              <div class="sidebar-body">
+
+                <!--
+                  EDIT: Update dates each fiscal year.
+                  Add class "urgent" to date-pip for imminent deadlines.
+                -->
+
+                <div class="date-item">
+                  <div class="date-pip urgent"></div>
+                  <div class="date-label">
+                    <strong>EOI Deadline — RV Nuliajuk</strong>
+                    <span class="date-when">March 31, 2026</span>
+                  </div>
+                </div>
+                <div class="date-item">
+                  <div class="date-pip urgent"></div>
+                  <div class="date-label">
+                    <strong>FDDP Application Deadline</strong>
+                    <span class="date-when">April 30, 2026</span>
+                  </div>
+                </div>
+                <div class="date-item">
+                  <div class="date-pip urgent"></div>
+                  <div class="date-label">
+                    <strong>Research Proposal Deadline — RV Nuliajuk</strong>
+                    <span class="date-when">April 30, 2026</span>
+                  </div>
+                </div>
+                <div class="date-item">
+                  <div class="date-pip"></div>
+                  <div class="date-label">
+                    <strong>Scheduling Decisions — RV Nuliajuk</strong>
+                    <span class="date-when">May 31, 2026</span>
+                  </div>
+                </div>
+                <div class="date-item">
+                  <div class="date-pip"></div>
+                  <div class="date-label">
+                    <strong>RV Nuliajuk Season Begins</strong>
+                    <span class="date-when">July 1, 2026</span>
+                  </div>
+                </div>
+                <div class="date-item">
+                  <div class="date-pip"></div>
+                  <div class="date-label">
+                    <strong>CFFS Claims — Ongoing</strong>
+                    <span class="date-when">Accepted year-round</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sidebar-panel" style="margin-top: 16px;">
+              <div class="sidebar-header">Quick Links</div>
+              <div class="sidebar-body">
+                <a class="quick-link" href="https://www.gov.nu.ca/en/industry/fisheries-and-sealing" target="_blank" rel="noopener">
+                  <span class="ql-icon">&#127760;</span>
+                  Fisheries &amp; Sealing — gov.nu.ca
+                  <span class="ql-arrow">&#8250;</span>
+                </a>
+                <a class="quick-link" href="#" onclick="openPortal('funding');return false;">
+                  <span class="ql-icon">&#128176;</span>
+                  Funding Finder
+                  <span class="ql-arrow">&#8250;</span>
+                </a>
+                <a class="quick-link" href="#" onclick="openPortal('cffs');return false;">
+                  <span class="ql-icon">&#128674;</span>
+                  Freight Subsidy Portal
+                  <span class="ql-arrow">&#8250;</span>
+                </a>
+                <a class="quick-link" href="#" onclick="openPortal('fddp');return false;">
+                  <span class="ql-icon">&#128031;</span>
+                  Development Program Portal
+                  <span class="ql-arrow">&#8250;</span>
+                </a>
+                <a class="quick-link" href="#" onclick="openPortal('sealfur');return false;">
+                  <span class="ql-icon">&#129453;</span>
+                  Seal &amp; Fur Portal
+                  <span class="ql-arrow">&#8250;</span>
+                </a>
+                <a class="quick-link" href="#" onclick="openPortal('nuliajuk');return false;">
+                  <span class="ql-icon">&#9875;</span>
+                  RV Nuliajuk Portal
+                  <span class="ql-arrow">&#8250;</span>
+                </a>
+                <a class="quick-link" href="mailto:fisheries@gov.nu.ca">
+                  <span class="ql-icon">&#9993;</span>
+                  Email: fisheries@gov.nu.ca
+                  <span class="ql-arrow">&#8250;</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════
+           SECTION 3: PROGRAM PORTALS
+           ════════════════════════════════════ -->
+      <div class="section">
+        <h2 class="section-title">Program Portals</h2>
+        <hr class="section-rule" />
+        <p class="section-desc">Access applications, check submission statuses, and explore funding opportunities.</p>
+        <div class="portal-grid">
+
+          <button class="portal-card animate-in" onclick="openPortal('funding')">
+            <div class="portal-card-accent"></div>
+            <div class="portal-card-body">
+              <div class="portal-card-icon">&#128176;</div>
+              <div class="portal-card-label">Discovery Tool</div>
+              <h3>Funding Finder</h3>
+              <p>Tell us about yourself and we'll match you with eligible fisheries, harvesting, and economic development programs across Nunavut.</p>
+              <div class="portal-card-arrow">Find programs <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            </div>
+          </button>
+
+          <button class="portal-card animate-in" onclick="openPortal('cffs')">
+            <div class="portal-card-accent"></div>
+            <div class="portal-card-body">
+              <div class="portal-card-icon">&#128674;</div>
+              <div class="portal-card-label">Application Portal</div>
+              <h3>Commercial Fisheries Freight Subsidy</h3>
+              <p>Apply for freight subsidies covering up to 50% of eligible shipping costs for commercially harvested fish and marine products.</p>
+              <div class="portal-card-arrow">Open portal <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            </div>
+          </button>
+
+          <button class="portal-card animate-in" onclick="openPortal('fddp')">
+            <div class="portal-card-accent"></div>
+            <div class="portal-card-body">
+              <div class="portal-card-icon">&#128031;</div>
+              <div class="portal-card-label">Application Portal</div>
+              <h3>Fisheries Development &amp; Diversification Program</h3>
+              <p>Access funding for fisheries development, diversification projects, new species exploration, and value-added processing.</p>
+              <div class="portal-card-arrow">Open portal <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            </div>
+          </button>
+
+          <button class="portal-card animate-in" onclick="openPortal('sealfur')">
+            <div class="portal-card-accent"></div>
+            <div class="portal-card-body">
+              <div class="portal-card-icon">&#129453;</div>
+              <div class="portal-card-label">Application Portal</div>
+              <h3>Seal &amp; Fur Programs</h3>
+              <p>Apply for seal harvester support, fur pricing programs, and community-based sealing initiatives across Nunavut's three regions.</p>
+              <div class="portal-card-arrow">Open portal <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            </div>
+          </button>
+
+          <button class="portal-card animate-in" onclick="openPortal('nuliajuk')">
+            <div class="portal-card-accent"></div>
+            <div class="portal-card-body">
+              <div class="portal-card-icon">&#9875;</div>
+              <div class="portal-card-label">Research Vessel</div>
+              <h3>RV Nuliajuk Portal</h3>
+              <p>View vessel details, seasonal schedules, submit research proposals and expressions of interest, and track submissions.</p>
+              <div class="portal-card-arrow">Open portal <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            </div>
+          </button>
+
+        </div>
+      </div>
+
+    </div><!-- /view-home -->
+
+    <!-- ─── IFRAME WRAPPERS ─── -->
+    <div class="portal-frame-wrapper" id="frame-funding">
+      <div class="portal-back-bar">
+        <button class="portal-back-btn" onclick="openPortal('home')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> All Portals</button>
+        <span class="portal-frame-title">Funding Finder</span>
+      </div>
+      <iframe class="portal-iframe" data-src="index_funding.html" title="Funding Finder"></iframe>
+    </div>
+    <div class="portal-frame-wrapper" id="frame-cffs">
+      <div class="portal-back-bar">
+        <button class="portal-back-btn" onclick="openPortal('home')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> All Portals</button>
+        <span class="portal-frame-title">Commercial Fisheries Freight Subsidy</span>
+      </div>
+      <iframe class="portal-iframe" data-src="index_CFFS_Portal.html" title="Commercial Fisheries Freight Subsidy"></iframe>
+    </div>
+    <div class="portal-frame-wrapper" id="frame-fddp">
+      <div class="portal-back-bar">
+        <button class="portal-back-btn" onclick="openPortal('home')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> All Portals</button>
+        <span class="portal-frame-title">Fisheries Development &amp; Diversification Program</span>
+      </div>
+      <iframe class="portal-iframe" data-src="index_FDDPP_Portal.html" title="Fisheries Development and Diversification Program"></iframe>
+    </div>
+    <div class="portal-frame-wrapper" id="frame-sealfur">
+      <div class="portal-back-bar">
+        <button class="portal-back-btn" onclick="openPortal('home')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> All Portals</button>
+        <span class="portal-frame-title">Seal &amp; Fur Programs</span>
+      </div>
+      <iframe class="portal-iframe" data-src="index_SealFur_Portal.html" title="Seal and Fur Programs"></iframe>
+    </div>
+    <div class="portal-frame-wrapper" id="frame-nuliajuk">
+      <div class="portal-back-bar">
+        <button class="portal-back-btn" onclick="openPortal('home')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> All Portals</button>
+        <span class="portal-frame-title">RV Nuliajuk — Research Vessel Portal</span>
+      </div>
+      <iframe class="portal-iframe" data-src="rv_nuliajuk_portal.html" title="RV Nuliajuk Research Vessel Portal"></iframe>
+    </div>
+  </main>
+
+  <!-- ═══════════════════════════════════════════════
+       FOOTER — Bottom Tabs (Tabs.pdf)
+       ═══════════════════════════════════════════════ -->
+  <footer class="site-footer" id="siteFooter">
+    <div class="footer-tabs">
+      <button class="footer-tab" data-tab="disclaimer">Disclaimer</button>
+      <button class="footer-tab" data-tab="privacy">Privacy</button>
+      <button class="footer-tab" data-tab="accessibility">Accessibility</button>
+      <button class="footer-tab" data-tab="copyright">Copyright</button>
+    </div>
+
+    <div class="footer-content" id="tab-disclaimer">
+      <h4>Disclaimer</h4>
+      <p>The information contained in this website is for general information purposes only. The information is provided by the Government of Nunavut and while we endeavour to keep the information up to date and correct, we make no representations or warranties of any kind, express or implied, about the completeness, accuracy, reliability, suitability or availability with respect to the website or the information, products, services, or related graphics contained on the website for any purpose. Any reliance you place on such information is therefore strictly at your own risk.</p>
+      <p>In no event will we be liable for any loss or damage including without limitation, indirect or consequential loss or damage, or any loss or damage whatsoever arising from loss of data or profits arising out of, or in connection with, the use of this website.</p>
+      <p>Through this website you are able to link to other websites which are not under the control of the Government of Nunavut. We have no control over the nature, content and availability of those sites. The inclusion of any links does not necessarily imply a recommendation or endorse the views expressed within them.</p>
+      <p>Every effort is made to keep the website up and running smoothly. However, the Government of Nunavut takes no responsibility for, and will not be liable for, the website being temporarily unavailable due to technical issues beyond our control.</p>
+    </div>
+
+    <div class="footer-content" id="tab-privacy">
+      <h4>Privacy</h4>
+      <p>The Government of Nunavut (GN) is committed to protecting personal privacy. Information is collected, used and disclosed in accordance with the provisions of the Access to Information and Protection of Privacy (ATIPP) Act.</p>
+      <p>Information in the custody or under the control of the Government of Nunavut is accessible in accordance with the provisions of the Access to Information and Protection of Privacy Act.</p>
+      <p>The Government of Nunavut uses software programs to monitor network traffic and identify unauthorized attempts to access, or otherwise damage, the network or information stored on the network. We do not attempt to link an IP address or web page visits with the identity of individuals using our site unless an attempt to damage the site has been detected.</p>
+      <p>Information collected from individual visitors is used by GN employees to respond to requests and to ensure the security of this system. We only share your information with a government department if your web inquiry relates to that department. We do not use the information to create individual profiles and do not disclose this information outside the territorial government.</p>
+      <p>For additional information about access to information and privacy please visit the <a href="#">ATIPP page</a> or contact:</p>
+      <div class="footer-contact-block">
+        <strong>Mark Witzaney</strong><br>
+        Director, Access to Information and Protection of Privacy<br>
+        Department of Executive and Intergovernmental Affairs<br>
+        P.O. Box 1000, Station 200<br>
+        Iqaluit, NU X0A 0H0<br>
+        Phone: 867-975-6088<br>
+        Email: <a href="mailto:mwitzaney2@gov.nu.ca">mwitzaney2@gov.nu.ca</a>
+      </div>
+    </div>
+
+    <div class="footer-content" id="tab-accessibility">
+      <h4>Accessibility</h4>
+      <p>The Government of Nunavut is committed to ensuring digital accessibility for people with disabilities. We are continually improving the user experience for everyone, and applying the relevant accessibility standards.</p>
+      <h5>Conformance Status</h5>
+      <p>The Web Content Accessibility Guidelines (WCAG) defines requirements for designers and developers to improve accessibility for people with disabilities. It defines three levels of conformance: Level A, Level AA, and Level AAA.</p>
+      <h5>Feedback</h5>
+      <p>We welcome your feedback on the accessibility of the Government of Nunavut website. Please let us know if you encounter accessibility barriers on this website on our <a href="#">Contact Us page</a>.</p>
+    </div>
+
+    <div class="footer-content" id="tab-copyright">
+      <h4>Copyright</h4>
+      <p>Materials on this website are produced and/or compiled by the Government of Nunavut for the purpose of providing employees and members of the public access to information about departments, programs, initiatives, services, and more.</p>
+      <p>The material on this site is subject to the provisions of the Copyright Act, by Canadian laws, policies, regulations and international agreements. Such provisions serve to identify the information source and, in specific instances, to prohibit reproduction of materials without written permission.</p>
+      <h5>Non-commercial Reproduction</h5>
+      <p>Information on this site has been posted with the intent that it be readily available for non-commercial use by visitors. Content included on this website can be shared and/or reproduced in accordance with the policies, procedures, and regulations that govern the release of information. When sharing or reproducing the information we ask that:</p>
+      <ul>
+        <li>Users exercise due diligence in ensuring the accuracy of the material reproduced.</li>
+        <li>The GN be identified as the source institution.</li>
+        <li>Users must use the following acknowledgement: "Copyright &copy; Government of Nunavut".</li>
+        <li>Users must respect the moral rights of the GN.</li>
+        <li>The reproduction is not represented as an official version of the materials reproduced, nor as having been made, in affiliation with or with the endorsement of the GN.</li>
+      </ul>
+      <h5>Commercial Reproduction</h5>
+      <p>Reproduction of multiple copies of materials on this site, in whole or in part, for the purposes of commercial redistribution is prohibited except with written permission from the Government of Nunavut.</p>
+      <h5>Third-party Materials</h5>
+      <p>Some of the materials and graphical elements found on Government of Nunavut web pages are subject to copyrights held by other organizations. This is particularly true of sites that are jointly operated by a Government of Nunavut institution and an external organization as part of a collaborative arrangement. In such cases, some restrictions on the reproduction of materials or graphical elements may apply and it may be necessary to seek permission from the rights holder prior to reproducing the material.</p>
+    </div>
+
+    <div class="footer-bottom">
+      <div class="footer-bottom-text">
+        Fisheries &amp; Sealing Division · Department of Community Services · Government of Nunavut<br>
+        P.O. Box 1000, Iqaluit, NU X0A 0H0 · <a href="mailto:fisheries@gov.nu.ca">fisheries@gov.nu.ca</a><br>
+        Copyright &copy; 2026 Government of Nunavut. All rights reserved.
+      </div>
+    </div>
+  </footer>
+
+  <!-- ═══════════════════════════════════════════════
+       SCRIPT
+       ═══════════════════════════════════════════════ -->
+  <script>
+    const portalMap = { home:null, funding:'frame-funding', cffs:'frame-cffs', fddp:'frame-fddp', sealfur:'frame-sealfur', nuliajuk:'frame-nuliajuk' };
+    const iframeLoaded = {};
+
+    function openPortal(key) {
+      // Lazy-load iframe
+      if (key !== 'home' && !iframeLoaded[key]) {
+        const fid = portalMap[key];
+        if (fid) {
+          const iframe = document.querySelector('#'+fid+' .portal-iframe');
+          if (iframe && iframe.dataset.src) { iframe.src = iframe.dataset.src; iframeLoaded[key] = true; }
+        }
+      }
+
+      // Nav state
+      document.querySelectorAll('.portal-nav button').forEach(b => b.classList.toggle('active', b.dataset.portal === key));
+
+      // Toggle views
+      document.getElementById('view-home').style.display = key === 'home' ? '' : 'none';
+      Object.entries(portalMap).forEach(([k,fid]) => { if (fid) document.getElementById(fid).classList.toggle('active', k === key); });
+
+      // Layout adjustment
+      const m = document.getElementById('mainContent');
+      if (key === 'home') {
+        m.style.padding = '';
+        m.style.maxWidth = '';
+      } else {
+        m.style.padding = '0';
+        m.style.maxWidth = '100%';
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Portal nav
+    document.querySelectorAll('.portal-nav button').forEach(b => b.addEventListener('click', () => openPortal(b.dataset.portal)));
+
+    // Footer tabs (toggle)
+    let activeFooterTab = null;
+    document.querySelectorAll('.footer-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const k = btn.dataset.tab;
+        if (activeFooterTab === k) {
+          btn.classList.remove('active');
+          document.getElementById('tab-'+k).classList.remove('active');
+          activeFooterTab = null;
+        } else {
+          document.querySelectorAll('.footer-tab').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.footer-content').forEach(c => c.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById('tab-'+k).classList.add('active');
+          activeFooterTab = k;
+          document.getElementById('siteFooter').scrollIntoView({ behavior:'smooth', block:'start' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
