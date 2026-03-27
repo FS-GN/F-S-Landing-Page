@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RV Nuliajuk — Research Vessel Portal · Government of Nunavut</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #F0F4F8; font-family: 'DM Sans', system-ui, sans-serif; color: #1B2A3D; -webkit-font-smoothing: antialiased; }
+    input, select, textarea, button { font-family: inherit; }
+    input[type="file"] { width: 100%; padding: 10px 12px; border: 1.5px dashed #B8CDE0; border-radius: 8px; font-size: 13px; color: #5A7896; background: #EAF1F8; cursor: pointer; }
+    input[type="file"]:hover { border-color: #0A5E8C; }
+    input[type="radio"] { accent-color: #0A5E8C; }
+    ::selection { background: #0A5E8C30; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes waveFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useCallback, useRef, useEffect } = React;
+
+    // =========================================================
+    // CONFIGURATION — replace with your Supabase project values
+    // =========================================================
+    const SUPABASE_URL      = "YOUR_SUPABASE_URL";
+    const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+    // =========================================================
+    const IS_DEMO = SUPABASE_URL === "YOUR_SUPABASE_URL";
+
+    // ── Supabase helpers ──────────────────────────────────────
+    async function sbFetch(path, opts = {}, token = null) {
+      const res = await fetch(`${SUPABASE_URL}${path}`, { ...opts, headers: { "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${token||SUPABASE_ANON_KEY}`, ...opts.headers } });
+      if (!res.ok) { const e = await res.json().catch(()=>({message:res.statusText})); throw new Error(e.message||e.error_description||"Request failed"); }
+      return res.status === 204 ? null : res.json();
+    }
+    const submitApplication = (table,data) => sbFetch(`/rest/v1/${table}`, { method:"POST", body:JSON.stringify(data), headers:{"Prefer":"return=minimal"} });
+    const lookupStatus = async (table,code) => { const r = await sbFetch(`/rest/v1/${table}?code=eq.${encodeURIComponent(code)}&limit=1`,{method:"GET"}); return Array.isArray(r)&&r.length?r[0]:null; };
+    const adminSignIn = async (email,pw) => { const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON_KEY},body:JSON.stringify({email,password:pw})}); if(!res.ok){const e=await res.json();throw new Error(e.error_description||"Invalid credentials");} return res.json(); };
+    const adminSignOut = (token) => fetch(`${SUPABASE_URL}/auth/v1/logout`,{method:"POST",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${token}`}}).catch(()=>{});
+
+    // ══════════════════════════════════════════════════════════
+    // DEMO DATA
+    // ══════════════════════════════════════════════════════════
+
+    const DEMO_CALLS = [
+      // ── Calls for Proposals ──
+      { id:"CFP-2026-001", call_type:"proposal", title:"2026 Sailing Season — Call for Research Proposals", status:"open", season:"2026", posted:"2026-01-15", deadline:"2026-04-30", description:"The Fisheries & Sealing Division invites Full Research Proposals for vessel time aboard the RV Nuliajuk during the 2026 open-water sailing season (July – October). Proposals should address fisheries science, oceanography, seabed mapping, marine ecology, or community fisheries development priorities in Nunavut's eastern Arctic waters.\n\nSuccessful applicants will receive confirmed vessel time, access to the RV Nuliajuk's scientific equipment and crew support, and coordination with other scheduled research programs where beneficial.\n\nAll researchers are expected to hold or apply for a Nunavut Research Institute licence and to include a Community Engagement Plan with their submission.", eligible:"Academic institutions, government agencies (federal/territorial), non-government research organizations, Nunavut communities and HTOs", requirements:"Completed proposal form, NRI licence (or application), funding confirmation, community engagement plan", contact:"nuliajuk@gov.nu.ca", updated:"2026-01-15" },
+      { id:"CFP-2025-002", call_type:"proposal", title:"2025 Sailing Season — Research Proposals (Closed)", status:"closed", season:"2025", posted:"2025-01-20", deadline:"2025-04-15", description:"This call for the 2025 season is now closed. Five research programs were approved and successfully completed.", eligible:"Academic institutions, government agencies, NGOs", requirements:"Completed proposal form, NRI licence, funding confirmation", contact:"nuliajuk@gov.nu.ca", updated:"2025-10-30" },
+      // ── Expressions of Interest ──
+      { id:"EOI-2026-001", call_type:"eoi", title:"2026 Season — Expression of Interest for Vessel Time", status:"open", season:"2026", posted:"2026-01-15", deadline:"2026-03-31", description:"The Fisheries & Sealing Division invites Expressions of Interest (EOI) from researchers, communities, and organizations wishing to use the RV Nuliajuk during the 2026 sailing season.\n\nAn EOI is a shorter, preliminary submission that helps the Division understand demand and plan the season schedule. Submitting an EOI does not guarantee vessel time but is an important first step. Applicants whose EOIs are favourably reviewed will be invited to submit a Full Proposal.\n\nEOIs are particularly encouraged from Nunavut communities and HTOs exploring new fisheries research or development opportunities.", eligible:"Any researcher, community group, HTO, government or academic institution", requirements:"Completed EOI form — shorter than a full proposal. NRI licence not required at EOI stage.", contact:"nuliajuk@gov.nu.ca", updated:"2026-01-15" },
+      { id:"EOI-2026-002", call_type:"eoi", title:"2026 Season — Community Fisheries Training Voyages EOI", status:"open", season:"2026", posted:"2026-02-01", deadline:"2026-04-15", description:"The Division is seeking Expressions of Interest from Nunavut communities interested in participating in fisheries training voyages aboard the RV Nuliajuk during August–September 2026.\n\nTraining voyages provide hands-on experience with commercial fishing gear, marine safety, and fisheries data collection techniques. Priority will be given to communities with active Fisheries Development Plans or HTOs pursuing new species allocations.\n\nNo research licence is required. Participants will receive training certifications upon completion.", eligible:"Nunavut communities, HTOs, community fisheries corporations", requirements:"Completed EOI form, letter of support from HTO or community council", contact:"nuliajuk@gov.nu.ca", updated:"2026-02-01" },
+    ];
+
+    const DEMO_PROPOSALS = [
+      { id:"NLJ-P-2026-0001", code:"IQA4-BTHY", submission_type:"proposal", call_id:"CFP-2026-001", org:"Fisheries and Oceans Canada", pi_name:"Dr. Kevin Hedges", email:"kevin.hedges@dfo-mpo.gc.ca", phone:"204-983-5135", affiliation:"DFO Arctic Region", community:"Iqaluit", title:"Multi-species Trawl Survey — Cumberland Sound", description:"Annual bottom trawl survey to assess Greenland halibut stock status in NAFO Division 0B. Includes acoustic biomass estimation, biological sampling, and CTD casts for environmental monitoring.", research_category:"fisheries_survey", equipment_needed:["Research Trawl & Trawl Sensors","Multi-Beam Sonar (Kongsberg EM2040C)","CTD Rosette System","Trawl Winches (Hydraulic)"], num_scientists:5, proposed_start:"2026-07-15", proposed_end:"2026-08-12", days_requested:28, region:"Cumberland Sound / Davis Strait", has_permit:true, permit_details:"NRI Licence #04 027N, DFO Section 52 Licence pending", funding_secured:true, funding_source:"DFO A-base Science", outreach_plan:"Community presentations in Pangnirtung and Iqaluit; Inuit crew positions (2); school visits.", stage:"approved", notes:"Approved Feb 28. Vessel time confirmed for July 15–Aug 12.", submitted:"2026-01-20" },
+      { id:"NLJ-P-2026-0002", code:"PAN7-XKRS", submission_type:"proposal", call_id:"CFP-2026-001", org:"Université Laval — Québec-Océan", pi_name:"Dr. Caroline Bouchard", email:"caroline.bouchard@bio.ulaval.ca", phone:"418-656-2131", affiliation:"Department of Biology", community:"Pangnirtung (Panniqtuuq)", title:"Larval Fish Ecology in Frobisher Bay", description:"Investigate larval Arctic cod distribution and recruitment success in relation to sea-ice dynamics and zooplankton prey fields.", research_category:"marine_ecology", equipment_needed:["Zooplankton Net","CTD Rosette System","AML3 Sensor Package"], num_scientists:3, proposed_start:"2026-08-20", proposed_end:"2026-09-05", days_requested:16, region:"Frobisher Bay", has_permit:false, permit_details:"", funding_secured:false, funding_source:"NSERC Discovery Grant — pending", outreach_plan:"Partnering with Pangnirtung HTO for local knowledge integration.", stage:"review", notes:"Strong scientific merit. Awaiting NRI licence and funding confirmation.", submitted:"2026-02-05" },
+    ];
+
+    const DEMO_EOIS = [
+      { id:"NLJ-E-2026-0001", code:"CLY3-MWQN", submission_type:"eoi", call_id:"EOI-2026-001", org:"Natural Resources Canada — GSC", pi_name:"Dr. Patrick Lajeunesse", email:"patrick.lajeunesse@nrcan.gc.ca", phone:"418-654-2677", affiliation:"GSC-Atlantic", community:"Clyde River (Kangiqtugaapik)", title:"Seabed Mapping & Geohazard Assessment — Eclipse Sound", description:"High-resolution multibeam bathymetric and backscatter survey of Eclipse Sound approaches to identify submarine landslide scars, iceberg scours, and potential geohazards.", research_category:"seabed_mapping", num_scientists:4, proposed_start:"2026-09-10", proposed_end:"2026-09-28", days_requested:18, region:"Eclipse Sound / Baffin Bay", stage:"invited", notes:"Strong EOI. Invited to submit full proposal by April 30.", submitted:"2026-01-28" },
+      { id:"NLJ-E-2026-0002", code:"ARV9-TQPL", submission_type:"eoi", call_id:"EOI-2026-002", org:"Arviat Hunters & Trappers Organization", pi_name:"Thomas Suluk", email:"tsuluk@arviat-hto.ca", phone:"867-857-2940", affiliation:"Arviat HTO", community:"Arviat", title:"Arviat Youth Fisheries Training Voyage", description:"Request for 5 youth participants from Arviat to join a training voyage learning commercial fishing techniques, marine safety, and data collection.", research_category:"training", num_scientists:5, proposed_start:"2026-08-15", proposed_end:"2026-08-22", days_requested:7, region:"Western Hudson Bay", stage:"received", notes:"", submitted:"2026-02-20" },
+    ];
+
+    // ── Constants ──────────────────────────────────────────────
+    const PROPOSAL_STAGES = [
+      {key:"received",label:"Received",short:"Received"},
+      {key:"review",label:"Scientific Review",short:"Review"},
+      {key:"scheduling",label:"Schedule Coordination",short:"Scheduling"},
+      {key:"approved",label:"Approved",short:"Approved"},
+      {key:"declined",label:"Declined",short:"Declined"},
+      {key:"completed",label:"Voyage Completed",short:"Completed"},
+    ];
+    const EOI_STAGES = [
+      {key:"received",label:"Received",short:"Received"},
+      {key:"review",label:"Under Review",short:"Review"},
+      {key:"invited",label:"Invited to Full Proposal",short:"Invited"},
+      {key:"not_proceeding",label:"Not Proceeding",short:"Not Proceeding"},
+    ];
+    const COMMUNITIES = ["Arviat","Baker Lake","Cambridge Bay","Cape Dorset (Kinngait)","Chesterfield Inlet","Clyde River (Kangiqtugaapik)","Coral Harbour (Salliq)","Gjoa Haven (Uqsuqtuuq)","Grise Fiord (Aujuittuq)","Hall Beach (Sanirajak)","Igloolik (Iglulik)","Iqaluit","Kimmirut","Kugaaruk","Kugluktuk","Naujaat (Repulse Bay)","Pangnirtung (Panniqtuuq)","Pond Inlet (Mittimatalik)","Qikiqtarjuaq","Rankin Inlet (Kangiqliniq)","Resolute (Qausuittuq)","Sanikiluaq","Taloyoak (Spence Bay)","Whale Cove (Tikirarjuaq)","Other / Outside Nunavut"];
+    const RESEARCH_CATEGORIES = [
+      {key:"fisheries_survey",label:"Fisheries Survey & Stock Assessment"},
+      {key:"seabed_mapping",label:"Seabed Mapping & Hydrography"},
+      {key:"marine_ecology",label:"Marine Ecology & Biodiversity"},
+      {key:"oceanography",label:"Physical Oceanography"},
+      {key:"climate_research",label:"Climate & Sea Ice Research"},
+      {key:"benthic_sampling",label:"Benthic Habitat Sampling"},
+      {key:"community_fisheries",label:"Community Fisheries Development"},
+      {key:"training",label:"Training & Capacity Building"},
+      {key:"other",label:"Other"},
+    ];
+    const EQUIPMENT_LIST = [
+      "Multi-Beam Sonar (Kongsberg EM2040C)","Navigation Echosounder (Furuno FCV 30)","Sub-bottom Profiler","Forward Looking Sonar","CTD Rosette System","CTD Winch (Model DB24)","AML3 Sensor Package","ADCP (Teledyne Ocean Surveyor)","AVOS Weather Station","Zooplankton Net","Research Trawl & Trawl Sensors","Trawl Winches (Hydraulic)","Otter Trawl (Doors & Warps)","Longline Hauler & Longlines","Crab/Shrimp Pots","Crab Hauler (Hydraulic)","Deck Crane","General Deck Winches","Benthic Grab","Zodiacs (2) with GPS & Navionics","Heated Wet Lab","Dry Lab","CSB HydroBlock Logging Kit","Satellite Communication","Power Block",
+    ];
+    const SEASON_DATA = [
+      { month:"July", status:"open", desc:"Early season. Ice conditions variable — ideal for protected fjords and southern Baffin.", icon:"🧊" },
+      { month:"August", status:"open", desc:"Peak season. Widest navigable range across eastern Arctic waters.", icon:"⛵" },
+      { month:"September", status:"open", desc:"Late season. Excellent for deeper-water surveys before freeze-up.", icon:"🌊" },
+      { month:"October", status:"limited", desc:"Shoulder season. Available for short nearshore work, weather dependent.", icon:"❄️" },
+    ];
+    const STAGE_COLORS = {received:"#2980B9",review:"#D4880A",scheduling:"#0A5E8C",approved:"#1A8A5C",declined:"#B94A48",completed:"#3BAE8E",invited:"#1A8A5C",not_proceeding:"#B94A48"};
+
+    // ── Color palette ─────────────────────────────────────────
+    const C = {
+      ink:"#1B2A3D", navy:"#0B2641", deep:"#0A1E33", ocean:"#0A5E8C", sky:"#2980B9",
+      teal:"#1A8A5C", mint:"#3BAE8E", ice:"#EAF1F8", snow:"#F0F4F8", white:"#FFFFFF",
+      gold:"#D4880A", amber:"#F5A623", line:"#C8D8E8", muted:"#5A7896",
+      danger:"#B94A48", blush:"#fdf0ef",
+      heroBg:"linear-gradient(135deg, #0B2641 0%, #0A5E8C 60%, #1A8A5C 100%)",
+    };
+
+    // ── Shared UI ─────────────────────────────────────────────
+    const Lbl = ({c}) => <div style={{fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:C.muted,marginBottom:5}}>{c}</div>;
+    const Inp = ({style,...p}) => <input style={{width:"100%",padding:"10px 12px",border:`1.5px solid ${C.line}`,borderRadius:8,fontSize:14,color:C.ink,background:"#fff",outline:"none",boxSizing:"border-box",...style}} onFocus={e=>e.target.style.borderColor=C.ocean} onBlur={e=>e.target.style.borderColor=C.line} {...p}/>;
+    const Sel = ({children,style,...p}) => <select style={{width:"100%",padding:"10px 12px",border:`1.5px solid ${C.line}`,borderRadius:8,fontSize:14,color:C.ink,background:"#fff",outline:"none",boxSizing:"border-box",appearance:"none",...style}} onFocus={e=>e.target.style.borderColor=C.ocean} onBlur={e=>e.target.style.borderColor=C.line} {...p}>{children}</select>;
+    const Txta = ({style,...p}) => <textarea style={{width:"100%",padding:"10px 12px",border:`1.5px solid ${C.line}`,borderRadius:8,fontSize:14,color:C.ink,background:"#fff",outline:"none",boxSizing:"border-box",resize:"vertical",minHeight:90,...style}} onFocus={e=>e.target.style.borderColor=C.ocean} onBlur={e=>e.target.style.borderColor=C.line} {...p}/>;
+    const Btn = ({variant="primary",style,loading,children,...p}) => { const vs={primary:{background:C.ocean,color:"#fff",border:"none"},secondary:{background:C.teal,color:"#fff",border:"none"},ghost:{background:"transparent",color:C.muted,border:`1.5px solid ${C.line}`},danger:{background:C.danger,color:"#fff",border:"none"}}; return <button disabled={loading} style={{padding:"10px 22px",borderRadius:8,fontSize:14,fontWeight:700,cursor:loading?"wait":"pointer",opacity:loading?0.7:1,...vs[variant],...style}} onMouseEnter={e=>{if(!loading)e.currentTarget.style.opacity="0.85"}} onMouseLeave={e=>e.currentTarget.style.opacity=loading?"0.7":"1"} {...p}>{loading?"…":children}</button>; };
+    const Card = ({children,style}) => <div style={{background:"#fff",borderRadius:14,border:`1.5px solid ${C.line}`,padding:28,...style}}>{children}</div>;
+    const Tag = ({color=C.ocean,children}) => <span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,background:color+"18",color,fontSize:11,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase"}}>{children}</span>;
+    const Err = ({msg}) => msg ? <div style={{color:C.danger,fontSize:13,marginTop:8,padding:"8px 12px",background:C.blush,borderRadius:6,border:`1px solid ${C.danger}30`}}>⚠ {msg}</div> : null;
+    const Fld = ({error,label,hint,children}) => <div style={{marginBottom:18}}><Lbl c={label}/>{hint&&<div style={{fontSize:12,color:C.muted,marginBottom:6}}>{hint}</div>}{children}{error&&<div style={{color:C.danger,fontSize:12,marginTop:4}}>{error}</div>}</div>;
+    const SecTitle = ({color=C.ocean,children}) => <div style={{fontSize:13,fontWeight:700,color,marginBottom:18,textTransform:"uppercase",letterSpacing:".08em",paddingBottom:10,borderBottom:`1.5px solid ${C.line}`}}>{children}</div>;
+    const DemoBanner = () => <div style={{background:"#fff8e1",border:`1.5px solid ${C.amber}`,borderRadius:10,padding:"12px 18px",marginBottom:24,fontSize:13,color:"#7a5200",display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:18}}>🔧</span><div><strong>Demo Mode</strong> — data resets on refresh. Add your Supabase credentials to go live.</div></div>;
+    const RadioGroup = ({name, value, onChange, options}) => (
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+        {options.map(([val,label]) => (
+          <label key={val} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"10px 16px",border:`1.5px solid ${value===val?C.ocean:C.line}`,borderRadius:8,background:value===val?C.ice:"#fff",fontSize:14,fontWeight:value===val?700:400,color:value===val?C.ocean:C.ink,flex:1,justifyContent:"center",transition:"all .15s",minWidth:140}}>
+            <input type="radio" name={name} value={val} checked={value===val} onChange={()=>onChange(val)} style={{accentColor:C.ocean}}/>{label}
+          </label>
+        ))}
+      </div>
+    );
+
+    // ── Equipment Picker ──────────────────────────────────────
+    function EquipmentPicker({selected, onChange}) {
+      const toggle = (item) => { if (selected.includes(item)) onChange(selected.filter(s=>s!==item)); else onChange([...selected, item]); };
+      return (
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+          {EQUIPMENT_LIST.map(eq=>(
+            <label key={eq} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"7px 10px",borderRadius:6,background:selected.includes(eq)?C.ice:"transparent",border:`1px solid ${selected.includes(eq)?C.ocean+"40":"transparent"}`,fontSize:12,color:selected.includes(eq)?C.ocean:C.ink,transition:"all .12s"}}>
+              <input type="checkbox" checked={selected.includes(eq)} onChange={()=>toggle(eq)} style={{accentColor:C.ocean,flexShrink:0}}/>
+              <span style={{fontWeight:selected.includes(eq)?600:400}}>{eq}</span>
+            </label>
+          ))}
+        </div>
+      );
+    }
+
+    // ── Pipeline ──────────────────────────────────────────────
+    function Pipeline({currentStage, stages}) {
+      const visible = stages.filter(s=>s.key!=="declined"&&s.key!=="not_proceeding");
+      const idx = visible.findIndex(s=>s.key===currentStage);
+      const bad = currentStage==="declined"||currentStage==="not_proceeding";
+      if (bad) return <div style={{textAlign:"center",padding:"12px 0"}}><Tag color={C.danger}>{stages.find(s=>s.key===currentStage)?.label||currentStage}</Tag></div>;
+      return (
+        <div style={{overflowX:"auto",paddingBottom:8}}>
+          <div style={{display:"flex",alignItems:"flex-start",minWidth:400}}>
+            {visible.map((s,i)=>{
+              const done=i<idx,active=i===idx;
+              return (
+                <div key={s.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",position:"relative"}}>
+                  {i>0&&<div style={{position:"absolute",top:15,right:"50%",width:"100%",height:3,background:done||active?C.mint:C.line,zIndex:0}}/>}
+                  <div style={{width:30,height:30,borderRadius:"50%",background:active?C.ocean:done?C.mint:C.line,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:active?`3px solid ${C.ocean}`:"none",boxShadow:active?`0 0 0 4px ${C.ocean}25`:"none"}}>
+                    {done&&<span style={{color:"#fff",fontSize:13,fontWeight:900}}>✓</span>}
+                    {active&&<span style={{width:8,height:8,borderRadius:"50%",background:"#fff",display:"block"}}/>}
+                  </div>
+                  <div style={{marginTop:7,fontSize:10,fontWeight:active?700:500,color:active?C.ink:done?C.teal:C.muted,textAlign:"center",lineHeight:1.3}}>{s.short}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // TAB: VESSEL OVERVIEW
+    // ══════════════════════════════════════════════════════════
+    function VesselView({news}) {
+      const specs = [{icon:"📏",label:"Length",value:"64 feet"},{icon:"🏗️",label:"Built",value:"2011, Canadian-built"},{icon:"🏛️",label:"Owner",value:"Government of Nunavut"},{icon:"👥",label:"Crew",value:"5 crew members"},{icon:"🔬",label:"Researchers",value:"Up to 4 berths"},{icon:"🔬",label:"Labs",value:"Heated wet & dry lab"},{icon:"📡",label:"Comms",value:"Satellite communication"}];
+      const equipCategories = [
+        { title:"Survey & Acoustics", items:["Multi-beam sonar (Kongsberg EM2040C)","Navigation echosounder (Furuno FCV 30)","Sub-bottom profiler","Forward looking sonar","CSB HydroBlock logging kit"] },
+        { title:"Oceanography", items:["CTD rosette system with bottles","CTD winch (Model DB24)","AML3 sensor package","ADCP (Teledyne Ocean Surveyor)"] },
+        { title:"Fisheries Gear", items:["Otter trawl with doors & warps","Trawl winches (hydraulic)","Longline hauler & lines","Crab/shrimp pots","Crab hauler (hydraulic)"] },
+        { title:"Deck & Sampling", items:["Deck crane","General winches","Power block","Benthic grab","Zooplankton net"] },
+        { title:"Support", items:["Two zodiacs with GPS & Navionics","AVOS weather station","Satellite communication","Heated wet & dry lab"] },
+      ];
+      const pastResearch = [
+        {year:"Ongoing",title:"DFO Fisheries Surveys",desc:"Multi-species bottom trawl surveys in Cumberland Sound and Davis Strait supporting Greenland halibut stock assessments."},
+        {year:"Ongoing",title:"NRCan Seabed Mapping",desc:"High-resolution bathymetric mapping of Arctic seabed for hydrographic charting and geohazard identification."},
+        {year:"Various",title:"Benthic Habitat Studies",desc:"Drop-camera surveys and benthic grabs to characterize seafloor composition and habitats across eastern Arctic."},
+        {year:"Various",title:"Oil Seep Investigations",desc:"Drone-based surveys, ultra-beam sonar, and scientific sampling to investigate natural hydrocarbon seeps."},
+        {year:"Various",title:"Migration & Spawning Research",desc:"Long-lining, tagging, and trawling programs studying fish migration corridors and spawning areas."},
+      ];
+      return (
+        <div style={{animation:"fadeUp .4s ease"}}>
+          <div style={{background:C.heroBg,borderRadius:18,padding:"44px 36px 36px",marginBottom:28,position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",top:0,right:0,width:300,height:300,background:"radial-gradient(circle at 70% 30%, rgba(26,138,92,0.2), transparent 70%)",pointerEvents:"none"}}/>
+            <div style={{position:"relative"}}>
+              <div style={{fontSize:13,fontWeight:600,letterSpacing:".12em",textTransform:"uppercase",color:"rgba(255,255,255,.5)",marginBottom:8}}>Government of Nunavut · Fisheries & Sealing</div>
+              <div style={{fontFamily:"'DM Serif Display',serif",fontSize:"clamp(30px,5vw,44px)",color:"#fff",lineHeight:1.15,marginBottom:12}}>RV Nuliajuk</div>
+              <div style={{fontSize:16,color:"rgba(255,255,255,.7)",maxWidth:620,lineHeight:1.6}}>A 64-foot Canadian-built research vessel owned and operated by the Government of Nunavut. Commissioned in 2011, the vessel carries a crew of 5 with berths for up to 4 researchers across 3 cabins.</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:20}}><Tag color="#fff">Research Vessel</Tag><Tag color="#fff">Eastern Arctic</Tag><Tag color="#fff">Since 2011</Tag></div>
+            </div>
+          </div>
+          
+          {(()=>{const pinned=news.filter(n=>n.pinned);return pinned.map(n=><Card key={n.id} style={{marginBottom:16,borderLeft:"4px solid "+C.amber,background:"#FFFBF0"}}><div style={{display:"flex",gap:10,alignItems:"flex-start"}}><span style={{fontSize:20}}>📌</span><div><div style={{fontSize:15,fontWeight:800,color:C.ink,marginBottom:3}}>{n.title}</div><div style={{fontSize:13,color:C.muted,lineHeight:1.6,whiteSpace:"pre-line"}}>{n.body}</div><div style={{fontSize:11,color:C.gold,marginTop:6,fontWeight:600}}>{n.date}</div></div></div></Card>);})()}
+<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:28}}>
+            {specs.map(s=><Card key={s.label} style={{padding:"16px 18px",textAlign:"center"}}><div style={{fontSize:22,marginBottom:6}}>{s.icon}</div><div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>{s.label}</div><div style={{fontSize:14,fontWeight:700,color:C.ink}}>{s.value}</div></Card>)}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:28}}>
+            <Card><SecTitle color={C.ocean}>About the Division</SecTitle><div style={{fontSize:14,color:C.ink,lineHeight:1.7}}>Fisheries and Sealing is a division within the Department of Community Services, responsible for maximizing economic opportunities in the fisheries and sealing sectors for Nunavummiut while upholding the principles of conservation and sustainability.</div></Card>
+            <Card><SecTitle color={C.teal}>Our Mission</SecTitle><div style={{fontSize:14,color:C.ink,lineHeight:1.7}}>To encourage community participation in fisheries, provide training and employment opportunities for Nunavummiut, and gather valuable data and observations on Arctic sea life. Researchers are expected to actively engage with communities.</div></Card>
+          </div>
+          <Card style={{marginBottom:28}}>
+            <SecTitle color={C.gold}>Vessel Amenities</SecTitle>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
+              {["Three cabins accommodating 5 crew and up to 4 researchers, with sink & storage","Two washrooms, one shower, laundry with washer & dryer","Spacious galley with full cooking & food storage facilities"].map((a,i)=>
+                <div key={i} style={{padding:"14px 16px",background:C.ice,borderRadius:10,fontSize:13,color:C.ink,lineHeight:1.6,borderLeft:`3px solid ${C.ocean}`}}>{a}</div>
+              )}
+            </div>
+          </Card>
+          <Card style={{marginBottom:28}}>
+            <SecTitle>Scientific Equipment & Capabilities</SecTitle>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+              {equipCategories.map(cat=><div key={cat.title}><div style={{fontSize:13,fontWeight:700,color:C.ocean,marginBottom:8}}>{cat.title}</div>{cat.items.map(item=><div key={item} style={{fontSize:13,color:C.ink,padding:"5px 0",paddingLeft:14,position:"relative",lineHeight:1.5}}><span style={{position:"absolute",left:0,top:7,width:6,height:6,borderRadius:"50%",background:C.teal}}/>{item}</div>)}</div>)}
+            </div>
+          </Card>
+          <Card style={{marginBottom:28}}>
+            <SecTitle color={C.gold}>Past Research & Voyages</SecTitle>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {pastResearch.map((r,i)=><div key={i} style={{display:"flex",gap:16,padding:"12px 14px",background:i%2===0?C.ice:"transparent",borderRadius:8}}><div style={{flexShrink:0,width:70,fontSize:11,fontWeight:700,color:C.muted,paddingTop:2}}>{r.year}</div><div><div style={{fontSize:14,fontWeight:700,color:C.ink,marginBottom:3}}>{r.title}</div><div style={{fontSize:13,color:C.muted,lineHeight:1.5}}>{r.desc}</div></div></div>)}
+            </div>
+          </Card>
+          <Card style={{background:C.ocean,borderColor:C.ocean}}>
+            <div style={{display:"flex",gap:20,alignItems:"center"}}>
+              <div style={{fontSize:44,animation:"waveFloat 3s ease-in-out infinite"}}>📣</div>
+              <div><div style={{fontSize:18,fontWeight:800,color:"#fff",marginBottom:6}}>Community Outreach</div><div style={{fontSize:14,color:"rgba(255,255,255,.8)",lineHeight:1.6}}>Researchers on the RV Nuliajuk are expected to actively engage with communities, fostering curiosity and increasing understanding and interest in scientific research throughout Nunavut.</div></div>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // TAB: SAILING SEASON
+    // ══════════════════════════════════════════════════════════
+    function SeasonView({season}) {
+      return (
+        <div style={{animation:"fadeUp .4s ease"}}>
+          <div style={{marginBottom:24}}><div style={{fontSize:22,fontWeight:800,color:C.navy,fontFamily:"'DM Serif Display',serif"}}>{season.year} Sailing Season</div><div style={{color:C.muted,marginTop:4,fontSize:14}}>{season.summary}</div></div>
+          <Card style={{marginBottom:24}}>
+            <SecTitle>Season Availability</SecTitle>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+              {season.months.map(m=><div key={m.month} style={{textAlign:"center",padding:"20px 12px",background:m.status==="open"?C.ice:"#FFF8F0",borderRadius:12,border:`1.5px solid ${m.status==="open"?C.ocean+"30":C.gold+"30"}`}}><div style={{fontSize:28,marginBottom:8}}>{m.icon}</div><div style={{fontSize:16,fontWeight:800,color:C.ink,marginBottom:4}}>{m.month}</div><Tag color={m.status==="open"?C.teal:C.gold}>{m.status==="open"?"Open":"Limited"}</Tag><div style={{fontSize:12,color:C.muted,marginTop:8,lineHeight:1.5}}>{m.desc}</div></div>)}
+            </div>
+          </Card>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24}}>
+            <Card style={{borderLeft:`4px solid ${C.danger}`}}>
+              <SecTitle color={C.danger}>Key Deadlines — {season.year}</SecTitle>
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {season.deadlines.map((d,i)=>
+                  <div key={i} style={{display:"flex",gap:12,alignItems:"center"}}><div style={{width:10,height:10,borderRadius:"50%",background:d.priority==="high"?C.gold:C.line,flexShrink:0,animation:d.priority==="high"?"pulse 2s infinite":"none"}}/><div><div style={{fontSize:14,fontWeight:700,color:C.ink}}>{d.date}</div><div style={{fontSize:12,color:C.muted}}>{d.label}</div></div></div>
+                )}
+              </div>
+            </Card>
+            <Card><SecTitle color={C.ocean}>Operating Region</SecTitle><div style={{fontSize:14,color:C.ink,lineHeight:1.7,whiteSpace:"pre-line"}}>{season.region}</div></Card>
+          </div>
+        </div>
+      );
+    }
+
+
+    function NewsView({news, catMap}) {
+      return <div style={{animation:"fadeUp .4s ease",maxWidth:800,margin:"0 auto"}}><div style={{marginBottom:24}}><div style={{fontSize:22,fontWeight:800,color:C.navy,fontFamily:"'DM Serif Display',serif"}}>News & Updates</div><div style={{color:C.muted,marginTop:4,fontSize:14}}>Latest from RV Nuliajuk operations.</div></div>{news.length===0&&<Card style={{textAlign:"center",padding:"48px 28px"}}><div style={{fontSize:40,marginBottom:12}}>📰</div><div style={{fontSize:16,fontWeight:700}}>No news yet.</div></Card>}{news.map(n=><Card key={n.id} style={{marginBottom:14,borderLeft:n.pinned?"4px solid "+C.amber:"4px solid "+C.line}}><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}><Tag color={n.pinned?C.amber:C.ocean}>{catMap[n.category]||n.category}</Tag>{n.pinned&&<Tag color={C.gold}>Pinned</Tag>}<span style={{fontSize:12,color:C.muted}}>{n.date}</span></div><div style={{fontSize:17,fontWeight:800,color:C.ink,marginBottom:8,lineHeight:1.3}}>{n.title}</div><div style={{fontSize:14,color:C.muted,lineHeight:1.7,whiteSpace:"pre-line"}}>{n.body}</div></Card>)}</div>;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // SHARED: CALL LISTING + SUBMISSION FORM
+    // ══════════════════════════════════════════════════════════
+    function CallListing({calls, callType, label, onSubmit}) {
+      const [selectedCall,setSelectedCall] = useState(null);
+      const [showForm,setShowForm] = useState(false);
+
+      const openCalls = calls.filter(c=>c.call_type===callType && c.status==="open");
+      const closedCalls = calls.filter(c=>c.call_type===callType && c.status!=="open");
+
+      const startSubmission = (call) => { setSelectedCall(call); setShowForm(true); window.scrollTo({top:0,behavior:"smooth"}); };
+      const cancelSubmission = () => { setShowForm(false); setSelectedCall(null); };
+
+      if (showForm && selectedCall) {
+        return <SubmissionForm call={selectedCall} callType={callType} onBack={cancelSubmission} onSubmit={(data)=>{onSubmit(data);setShowForm(false);setSelectedCall(null);}}/>;
+      }
+
+      return (
+        <div style={{animation:"fadeUp .4s ease"}}>
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:22,fontWeight:800,color:C.navy,fontFamily:"'DM Serif Display',serif"}}>{callType==="proposal"?"Calls for Proposals":"Expressions of Interest"}</div>
+            <div style={{color:C.muted,marginTop:4,fontSize:14}}>{callType==="proposal"?"View open calls and submit your full research proposal for vessel time.":"View open calls and submit an Expression of Interest (EOI) for vessel time."}</div>
+          </div>
+
+          {openCalls.length===0 && (
+            <Card style={{textAlign:"center",padding:"48px 28px",marginBottom:24}}>
+              <div style={{fontSize:40,marginBottom:12}}>{callType==="proposal"?"📋":"💡"}</div>
+              <div style={{fontSize:16,fontWeight:700,color:C.ink,marginBottom:6}}>No Open {label}s</div>
+              <div style={{fontSize:14,color:C.muted}}>There are currently no open {label.toLowerCase()}s. Check back soon or contact the Division for information on upcoming opportunities.</div>
+            </Card>
+          )}
+
+          {openCalls.map(call=>(
+            <Card key={call.id} style={{marginBottom:16,borderLeft:`4px solid ${C.teal}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:16,flexWrap:"wrap"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+                    <Tag color={C.teal}>Open</Tag>
+                    <Tag color={C.gold}>Deadline: {call.deadline}</Tag>
+                    <span style={{fontSize:11,color:C.muted,fontFamily:"monospace"}}>{call.id}</span>
+                  </div>
+                  <div style={{fontSize:18,fontWeight:800,color:C.ink,marginBottom:8,lineHeight:1.3}}>{call.title}</div>
+                  <div style={{fontSize:14,color:C.muted,lineHeight:1.7,whiteSpace:"pre-line",marginBottom:16}}>{call.description}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+                    <div><Lbl c="Eligible Applicants"/><div style={{fontSize:13,color:C.ink,lineHeight:1.5}}>{call.eligible}</div></div>
+                    <div><Lbl c="Requirements"/><div style={{fontSize:13,color:C.ink,lineHeight:1.5}}>{call.requirements}</div></div>
+                  </div>
+                  <div style={{fontSize:12,color:C.muted}}>Posted: {call.posted} · Contact: <a href={`mailto:${call.contact}`} style={{color:C.ocean}}>{call.contact}</a></div>
+                </div>
+              </div>
+              <div style={{borderTop:`1.5px solid ${C.line}`,marginTop:16,paddingTop:16,display:"flex",justifyContent:"flex-end"}}>
+                <Btn onClick={()=>startSubmission(call)}>Submit {callType==="proposal"?"Proposal":"Expression of Interest"} →</Btn>
+              </div>
+            </Card>
+          ))}
+
+          {closedCalls.length>0 && (
+            <div style={{marginTop:32}}>
+              <div style={{fontSize:15,fontWeight:700,color:C.muted,marginBottom:14,textTransform:"uppercase",letterSpacing:".06em"}}>Past / Closed {label}s</div>
+              {closedCalls.map(call=>(
+                <Card key={call.id} style={{marginBottom:12,opacity:0.7}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+                    <div>
+                      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4}}><Tag color={C.muted}>Closed</Tag><span style={{fontSize:11,color:C.muted,fontFamily:"monospace"}}>{call.id}</span></div>
+                      <div style={{fontSize:15,fontWeight:700,color:C.ink}}>{call.title}</div>
+                      <div style={{fontSize:12,color:C.muted,marginTop:4}}>Deadline was: {call.deadline}</div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Submission Form (used by both Proposal and EOI) ──────
+    function genCode(c) { const p=c?c.slice(0,3).toUpperCase().replace(/[^A-Z]/g,"X"):"GEN"; const n=Math.floor(1000+Math.random()*9000); const a=String.fromCharCode(65+Math.floor(Math.random()*26))+String.fromCharCode(65+Math.floor(Math.random()*26)); return `${p}${String(n)[0]}${a[0]}-${a[1]}${String(n).slice(1)}`; }
+
+    function SubmissionForm({call, callType, onBack, onSubmit}) {
+      const isProposal = callType==="proposal";
+      const INIT = {org:"",pi_name:"",email:"",phone:"",affiliation:"",community:"",title:"",desc:"",research_category:"",num_scientists:"",proposed_start:"",proposed_end:"",days_requested:"",region:"",has_permit:"",permit_details:"",funding_secured:"",funding_source:"",outreach_plan:""};
+      const [form,setForm] = useState(INIT);
+      const [equipment,setEquipment] = useState([]);
+      const [errors,setErrors] = useState({});
+      const [loading,setLoading] = useState(false);
+      const [submitted,setSubmitted] = useState(null);
+      const [apiErr,setApiErr] = useState("");
+      const fileRef = useRef(null);
+      const [supportDoc,setSupportDoc] = useState(null);
+      const f = (k,v) => setForm(p=>({...p,[k]:v}));
+
+      const validate = () => {
+        const e={};
+        if (!form.org.trim()) e.org="Required";
+        if (!form.pi_name.trim()) e.pi_name="Required";
+        if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email="Valid email required";
+        if (!form.community) e.community="Required";
+        if (!form.title.trim()) e.title="Required";
+        if (form.desc.trim().length<30) e.desc="Please provide at least 30 characters";
+        if (!form.research_category) e.research_category="Required";
+        if (!form.proposed_start) e.proposed_start="Required";
+        if (!form.proposed_end) e.proposed_end="Required";
+        if (!form.days_requested || parseInt(form.days_requested)<1) e.days_requested="Required";
+        if (isProposal) {
+          if (!form.has_permit) e.has_permit="Required";
+          if (!form.funding_secured) e.funding_secured="Required";
+          if (equipment.length===0) e.equipment="Select at least one piece of equipment";
+          if (!form.outreach_plan || form.outreach_plan.trim().length<10) e.outreach_plan="Community engagement plan is required for full proposals";
+        }
+        return e;
+      };
+
+      const handleSubmit = async () => {
+        const e=validate();
+        if (Object.keys(e).length) { setErrors(e); window.scrollTo({top:0,behavior:"smooth"}); return; }
+        setLoading(true); setApiErr("");
+        const code=genCode(form.community);
+        const prefix=isProposal?"NLJ-P":"NLJ-E";
+        const id=`${prefix}-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+        const today=new Date().toISOString().split("T")[0];
+        try {
+          const payload={id,code,submission_type:callType,call_id:call.id,org:form.org,pi_name:form.pi_name,email:form.email,phone:form.phone,affiliation:form.affiliation,community:form.community,title:form.title,description:form.desc,research_category:form.research_category,equipment_needed:isProposal?equipment:[],num_scientists:parseInt(form.num_scientists)||0,proposed_start:form.proposed_start,proposed_end:form.proposed_end,days_requested:parseInt(form.days_requested)||0,region:form.region,has_permit:form.has_permit==="yes",permit_details:form.permit_details||"",funding_secured:form.funding_secured==="yes",funding_source:form.funding_source||"",outreach_plan:form.outreach_plan||"",stage:"received",notes:"",submitted:today};
+          if (!IS_DEMO) await submitApplication(isProposal?"vessel_proposals":"vessel_eois",payload);
+          onSubmit(payload);
+          setSubmitted({id,code});
+        } catch(err) { setApiErr(err.message); }
+        finally { setLoading(false); }
+      };
+
+      if (submitted) return (
+        <div style={{maxWidth:560,margin:"0 auto",animation:"fadeUp .4s ease"}}>
+          <Card style={{textAlign:"center",padding:"48px 36px"}}>
+            <div style={{fontSize:52,marginBottom:16}}>⚓</div>
+            <div style={{fontSize:22,fontWeight:800,color:C.navy,marginBottom:10}}>{isProposal?"Proposal":"Expression of Interest"} Submitted!</div>
+            <div style={{color:C.muted,marginBottom:28,lineHeight:1.6}}>Your submission for the RV Nuliajuk has been received. Save your access code — you will need it to check your status.</div>
+            <div style={{background:C.ice,borderRadius:12,padding:"20px 28px",marginBottom:16,border:`2px dashed ${C.ocean}`}}>
+              <Lbl c="Your Secure Access Code"/>
+              <div style={{fontSize:34,fontWeight:900,color:C.navy,letterSpacing:"0.12em",fontFamily:"monospace"}}>{submitted.code}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:6}}>{submitted.id}</div>
+            </div>
+            <div style={{background:C.ice,borderRadius:8,padding:"10px 14px",marginBottom:24,fontSize:12,color:C.muted}}>Submitted against: <strong>{call.title}</strong> ({call.id})</div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:24,background:C.snow,borderRadius:8,padding:14,textAlign:"left",lineHeight:1.7}}>
+              🔒 <strong>Your information is protected</strong> under the <em>Access to Information and Protection of Privacy Act</em> (ATIPPA).<br/><br/>
+              ⏱ {isProposal ? "Scientific review typically completed within 20 business days of the submission deadline." : "EOI review typically completed within 15 business days of the submission deadline."}
+            </div>
+            <Btn onClick={onBack}>← Back to {isProposal?"Calls for Proposals":"Expressions of Interest"}</Btn>
+          </Card>
+        </div>
+      );
+
+      const errCount = Object.keys(errors).length;
+
+      return (
+        <div style={{maxWidth:760,margin:"0 auto",animation:"fadeUp .4s ease"}}>
+          <button onClick={onBack} style={{background:"none",border:"none",color:C.ocean,fontSize:14,fontWeight:700,cursor:"pointer",marginBottom:16,padding:0}}>← Back to {isProposal?"Calls for Proposals":"Expressions of Interest"}</button>
+
+          <Card style={{marginBottom:20,background:C.ice,borderLeft:`4px solid ${C.ocean}`}}>
+            <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Submitting Against</div>
+            <div style={{fontSize:16,fontWeight:800,color:C.ink}}>{call.title}</div>
+            <div style={{fontSize:12,color:C.muted,marginTop:4}}>{call.id} · Deadline: {call.deadline}</div>
+          </Card>
+
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:22,fontWeight:800,color:C.navy,fontFamily:"'DM Serif Display',serif"}}>{isProposal?"Full Proposal Form":"Expression of Interest Form"}</div>
+            <div style={{color:C.muted,marginTop:4,fontSize:14}}>{isProposal?"Provide a complete research proposal including equipment needs, permits, funding, and community engagement plan.":"Provide a preliminary overview of your research interest. Shorter than a full proposal — NRI licence not required at this stage."}</div>
+          </div>
+
+          {errCount>0&&<div style={{background:C.blush,border:`1.5px solid ${C.danger}`,borderRadius:10,padding:"14px 18px",marginBottom:24,fontSize:13,color:C.danger}}>⚠ Please correct <strong>{errCount} {errCount===1?"field":"fields"}</strong> before submitting.</div>}
+
+          {/* PI & Org */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle>Principal Investigator & Organization</SecTitle>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
+              <div style={{gridColumn:"1/-1"}}><Fld label="Organization / Institution" error={errors.org}><Inp value={form.org} onChange={e=>f("org",e.target.value)} placeholder="e.g. Fisheries and Oceans Canada"/></Fld></div>
+              <Fld label="Principal Investigator (PI) Name" error={errors.pi_name}><Inp value={form.pi_name} onChange={e=>f("pi_name",e.target.value)} placeholder="Full name"/></Fld>
+              <Fld label="Department / Affiliation"><Inp value={form.affiliation} onChange={e=>f("affiliation",e.target.value)} placeholder="e.g. DFO Arctic Region"/></Fld>
+              <Fld label="Email Address" error={errors.email}><Inp type="email" value={form.email} onChange={e=>f("email",e.target.value)} placeholder="name@organization.ca"/></Fld>
+              <Fld label="Phone Number"><Inp value={form.phone} onChange={e=>f("phone",e.target.value)} placeholder="867-XXX-XXXX"/></Fld>
+              <Fld label="Nearest Nunavut Community" error={errors.community} hint="Community most relevant to the proposed research.">
+                <Sel value={form.community} onChange={e=>f("community",e.target.value)}><option value="">— Select community —</option>{COMMUNITIES.map(c=><option key={c} value={c}>{c}</option>)}</Sel>
+              </Fld>
+            </div>
+          </Card>
+
+          {/* Research details */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle>Research Details</SecTitle>
+            <Fld label="Research Category" error={errors.research_category}><Sel value={form.research_category} onChange={e=>f("research_category",e.target.value)}><option value="">— Select category —</option>{RESEARCH_CATEGORIES.map(c=><option key={c.key} value={c.key}>{c.label}</option>)}</Sel></Fld>
+            <Fld label="Project Title" error={errors.title}><Inp value={form.title} onChange={e=>f("title",e.target.value)} placeholder="Short descriptive title"/></Fld>
+            <Fld label="Project Description" error={errors.desc} hint={isProposal?"Describe research objectives, methodology, expected outcomes, and significance.":"Provide a preliminary overview of your research interest and objectives."}>
+              <Txta value={form.desc} onChange={e=>f("desc",e.target.value)} placeholder="Minimum 30 characters…" style={{minHeight:isProposal?120:90}}/>
+            </Fld>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 16px"}}>
+              <Fld label="Proposed Start Date" error={errors.proposed_start}><Inp type="date" value={form.proposed_start} onChange={e=>f("proposed_start",e.target.value)}/></Fld>
+              <Fld label="Proposed End Date" error={errors.proposed_end}><Inp type="date" value={form.proposed_end} onChange={e=>f("proposed_end",e.target.value)}/></Fld>
+              <Fld label="Vessel Days Requested" error={errors.days_requested}><Inp type="number" min="1" value={form.days_requested} onChange={e=>f("days_requested",e.target.value)} placeholder="e.g. 14"/></Fld>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
+              <Fld label="Primary Study Region"><Inp value={form.region} onChange={e=>f("region",e.target.value)} placeholder="e.g. Cumberland Sound / Davis Strait"/></Fld>
+              <Fld label="Number of Scientists / Researchers"><Inp type="number" min="1" max="4" value={form.num_scientists} onChange={e=>f("num_scientists",e.target.value)} placeholder="Max 4"/></Fld>
+            </div>
+          </Card>
+
+          {/* Equipment — proposals only */}
+          {isProposal && (
+            <Card style={{marginBottom:20}}>
+              <SecTitle color={C.gold}>Equipment Requirements</SecTitle>
+              <div style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>Select all vessel equipment and facilities required for your research program.</div>
+              <EquipmentPicker selected={equipment} onChange={setEquipment}/>
+              {errors.equipment&&<div style={{color:C.danger,fontSize:12,marginTop:8}}>{errors.equipment}</div>}
+            </Card>
+          )}
+
+          {/* Permits & Funding */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle>{isProposal?"Permits & Funding":"Permits & Funding (Optional for EOI)"}</SecTitle>
+            <Fld label="Do you hold (or have you applied for) an NRI licence?" error={errors.has_permit}>
+              <RadioGroup name="permit" value={form.has_permit} onChange={v=>f("has_permit",v)} options={[["yes","Yes"],["no","No"],["pending","Applied / Pending"]]}/>
+            </Fld>
+            {(form.has_permit==="yes"||form.has_permit==="pending")&&<Fld label="Licence Details"><Inp value={form.permit_details} onChange={e=>f("permit_details",e.target.value)} placeholder="e.g. NRI Licence #04 027N"/></Fld>}
+            <Fld label="Is funding secured for this research?" error={errors.funding_secured}>
+              <RadioGroup name="funding" value={form.funding_secured} onChange={v=>f("funding_secured",v)} options={[["yes","Yes — Secured"],["no","No / Pending"]]}/>
+            </Fld>
+            <Fld label="Funding Source(s)"><Inp value={form.funding_source} onChange={e=>f("funding_source",e.target.value)} placeholder="e.g. NSERC Discovery Grant, DFO A-base"/></Fld>
+          </Card>
+
+          {/* Community engagement — required for proposals, optional for EOI */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle color={C.teal}>Community Engagement Plan{!isProposal?" (Optional)":""}</SecTitle>
+            <Fld label="How will your research team engage with Nunavut communities?" error={errors.outreach_plan} hint="Researchers are expected to foster curiosity and understanding. Describe outreach, knowledge-sharing, or community involvement.">
+              <Txta value={form.outreach_plan} onChange={e=>f("outreach_plan",e.target.value)} placeholder="e.g. Public presentations, school visits, Inuit knowledge integration…" style={{minHeight:80}}/>
+            </Fld>
+          </Card>
+
+          {/* Supporting docs */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle>Supporting Documents (Optional)</SecTitle>
+            <Fld label="Attach research plan, CV, or supporting documents (PDF — max 10 MB)">
+              <input ref={fileRef} type="file" accept=".pdf" onChange={e=>setSupportDoc(e.target.files[0]||null)}/>
+              {supportDoc&&<div style={{marginTop:8,fontSize:13,color:C.ocean,fontWeight:600}}>📎 {supportDoc.name} ({(supportDoc.size/1024/1024).toFixed(2)} MB)</div>}
+              {IS_DEMO&&supportDoc&&<div style={{fontSize:12,color:C.muted,marginTop:4}}>Demo mode: file not uploaded.</div>}
+            </Fld>
+          </Card>
+
+          {/* Declaration */}
+          <Card style={{marginBottom:28,background:C.ice}}>
+            <div style={{fontSize:13,color:C.muted,lineHeight:1.8}}>
+              🔒 <strong>Privacy Notice:</strong> Personal information is used solely for coordinating vessel operations and is protected under the <em>Access to Information and Protection of Privacy Act</em> (ATIPPA). By submitting, you confirm the information is accurate and you are authorized to submit on behalf of your organization.
+            </div>
+          </Card>
+
+          <Err msg={apiErr}/>
+          <div style={{display:"flex",justifyContent:"space-between",gap:12,marginBottom:20}}>
+            <Btn variant="ghost" onClick={onBack}>← Cancel</Btn>
+            <Btn onClick={handleSubmit} loading={loading}>Submit {isProposal?"Full Proposal":"Expression of Interest"}</Btn>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // TAB: CHECK STATUS
+    // ══════════════════════════════════════════════════════════
+    function StatusView({proposals, eois}) {
+      const [code,setCode]=useState(""); const [loading,setLoading]=useState(false); const [result,setResult]=useState(null); const [err,setErr]=useState("");
+      const lookup = async () => {
+        if (code.trim().length<4) { setErr("Please enter your access code."); return; }
+        setLoading(true); setErr(""); setResult(null);
+        try {
+          let found;
+          if (IS_DEMO) found=[...proposals,...eois].find(a=>a.code.toLowerCase()===code.trim().toLowerCase());
+          else { found=await lookupStatus("vessel_proposals",code.trim()); if(!found) found=await lookupStatus("vessel_eois",code.trim()); }
+          if (!found) setErr("No submission found. Check your code and try again.");
+          else setResult(found);
+        } catch(e) { setErr(e.message); }
+        finally { setLoading(false); }
+      };
+      const isProposal = result?.submission_type==="proposal";
+      const stages = isProposal ? PROPOSAL_STAGES : EOI_STAGES;
+      const pct = result ? Math.round(((stages.findIndex(s=>s.key===result.stage)+1)/stages.filter(s=>s.key!=="declined"&&s.key!=="not_proceeding").length)*100) : 0;
+      return (
+        <div style={{maxWidth:600,margin:"0 auto",animation:"fadeUp .4s ease"}}>
+          <div style={{marginBottom:24}}><div style={{fontSize:22,fontWeight:800,color:C.navy,fontFamily:"'DM Serif Display',serif"}}>Check Submission Status</div><div style={{color:C.muted,marginTop:4,fontSize:14}}>Enter the access code you received when you submitted your proposal or EOI.</div></div>
+          <Card style={{marginBottom:24}}>
+            <Fld label="Access Code"><Inp value={code} onChange={e=>setCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&lookup()} placeholder="e.g. IQA4-BTHY" style={{fontSize:20,fontWeight:700,letterSpacing:".08em",textAlign:"center",fontFamily:"monospace"}}/></Fld>
+            <Err msg={err}/><Btn onClick={lookup} loading={loading} style={{width:"100%",marginTop:err?12:4}}>Look Up Status</Btn>
+          </Card>
+          {result&&(
+            <Card style={{borderTop:`4px solid ${STAGE_COLORS[result.stage]||C.ocean}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,gap:12}}>
+                <div><div style={{fontSize:17,fontWeight:800,color:C.ink}}>{result.title}</div><div style={{fontSize:12,color:C.muted,fontFamily:"monospace",marginTop:3}}>{result.id}</div></div>
+                <Tag color={STAGE_COLORS[result.stage]}>{stages.find(s=>s.key===result.stage)?.label||result.stage}</Tag>
+              </div>
+              <div style={{marginBottom:8}}><Tag color={isProposal?C.ocean:C.gold}>{isProposal?"Full Proposal":"Expression of Interest"}</Tag></div>
+              <div style={{marginBottom:22}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><Lbl c="Progress"/><span style={{fontSize:12,color:C.muted}}>{pct}%</span></div><div style={{height:7,background:C.line,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${C.ocean},${C.teal})`,borderRadius:4}}/></div></div>
+              <Pipeline currentStage={result.stage} stages={stages}/>
+              <div style={{borderTop:`1.5px solid ${C.line}`,marginTop:24,paddingTop:20}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+                  {[["Submitted",result.submitted],["Call",result.call_id],["Dates",`${result.proposed_start} → ${result.proposed_end}`],["Days",result.days_requested+" days"]].map(([k,v])=><div key={k}><Lbl c={k}/><div style={{fontSize:13,color:C.ink,fontWeight:600}}>{v}</div></div>)}
+                </div>
+                {result.notes&&<div style={{marginTop:16,background:C.ice,borderRadius:8,padding:"12px 14px",fontSize:13,color:C.muted,borderLeft:`3px solid ${C.ocean}`}}><strong>Program Note:</strong> {result.notes}</div>}
+              </div>
+            </Card>
+          )}
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // TAB: ADMIN
+    // ══════════════════════════════════════════════════════════
+    function AdminView({calls, setCalls, proposals, setProposals, eois, setEois, season, setSeason, news, setNews, newsCats}) {
+      const [session,setSession]=useState(null);const [email,setEmail]=useState("");const [password,setPassword]=useState("");const [loginErr,setLoginErr]=useState("");const [loginLoading,setLoginLoading]=useState(false);
+      const [adminTab,setAdminTab]=useState("calls");
+      const [search,setSearch]=useState("");const [filterStage,setFilterStage]=useState("");
+      const[seasonForm,setSeasonForm]=useState(null);const[seasonSaved,setSeasonSaved]=useState(false);
+      const[editingNews,setEditingNews]=useState(null);const[newsForm,setNewsForm]=useState({});const nf=(k,v)=>setNewsForm(p=>({...p,[k]:v}));const[newsSaved,setNewsSaved]=useState(false);
+
+      // ─── Call editor state ──────────
+      const [editingCall,setEditingCall]=useState(null);
+      const [callForm,setCallForm]=useState({call_type:"proposal",title:"",status:"open",season:"2026",deadline:"",description:"",eligible:"",requirements:"",contact:"nuliajuk@gov.nu.ca"});
+      const cf=(k,v)=>setCallForm(p=>({...p,[k]:v}));
+      const [callSaving,setCallSaving]=useState(false);const [callSaved,setCallSaved]=useState(false);
+
+      const startNewCall=(type)=>{setEditingCall("new");setCallForm({call_type:type,title:"",status:"open",season:"2026",deadline:"",description:"",eligible:"",requirements:"",contact:"nuliajuk@gov.nu.ca"});setCallSaved(false);};
+      const startEditCall=(c)=>{setEditingCall(c.id);setCallForm({...c});setCallSaved(false);};
+      const saveCall=()=>{
+        setCallSaving(true);
+        const today=new Date().toISOString().split("T")[0];
+        if(editingCall==="new"){
+          const prefix=callForm.call_type==="proposal"?"CFP":"EOI";
+          const id=`${prefix}-${callForm.season}-${String(Date.now()).slice(-3)}`;
+          setCalls(p=>[{...callForm,id,posted:today,updated:today},...p]);
+        } else {
+          setCalls(p=>p.map(c=>c.id===editingCall?{...callForm,id:editingCall,updated:today}:c));
+        }
+        setCallSaving(false);setCallSaved(true);setTimeout(()=>{setEditingCall(null);setCallSaved(false);},1200);
+      };
+
+      // ─── Submission reviewer state ──
+      const [selectedSub,setSelectedSub]=useState(null);const [newStage,setNewStage]=useState("");const [note,setNote]=useState("");const [saving,setSaving]=useState(false);const [saved,setSaved]=useState(false);const [saveErr,setSaveErr]=useState("");
+      const openSub=(s)=>{setSelectedSub(s);setNewStage(s.stage);setNote(s.notes||"");setSaved(false);setSaveErr("");};
+      const saveSub=()=>{
+        if(!selectedSub)return;setSaving(true);setSaveErr("");setSaved(false);
+        const patch={stage:newStage,notes:note};
+        const isP=selectedSub.submission_type==="proposal";
+        const setter=isP?setProposals:setEois;
+        setter(p=>p.map(a=>a.id===selectedSub.id?{...a,...patch}:a));
+        setSelectedSub(p=>({...p,...patch}));setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),3000);
+      };
+
+      const handleLogin=async()=>{setLoginLoading(true);setLoginErr("");try{if(IS_DEMO){setSession({isDemoSession:true,user:{email:"demo@gov.nu.ca"}});}else{const s=await adminSignIn(email,password);setSession(s);}}catch(e){setLoginErr(e.message);}finally{setLoginLoading(false);}};
+      const handleLogout=()=>{setSession(null);setSelectedSub(null);setEditingCall(null);setSeasonForm(null);setEditingNews(null);};
+
+      if (!session) return (
+        <div style={{maxWidth:420,margin:"60px auto",animation:"fadeUp .4s ease"}}>
+          {IS_DEMO&&<DemoBanner/>}
+          <Card style={{padding:"40px 36px"}}>
+            <div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:36,marginBottom:12}}>🔐</div><div style={{fontSize:20,fontWeight:800,color:C.navy}}>Admin Access</div><div style={{color:C.muted,fontSize:13,marginTop:6}}>Fisheries & Sealing Division — Vessel Operations</div></div>
+            {IS_DEMO?<div style={{background:C.ice,borderRadius:8,padding:16,fontSize:13,color:C.muted,marginBottom:20,textAlign:"center"}}>Demo mode — click Sign In to access the admin panel.</div>:(<><Fld label="GN Email"><Inp type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="you@gov.nu.ca"/></Fld><Fld label="Password"><Inp type="password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••"/></Fld></>)}
+            <Err msg={loginErr}/><Btn onClick={handleLogin} loading={loginLoading} style={{width:"100%",marginTop:8}}>Sign In</Btn>
+          </Card>
+        </div>
+      );
+
+      const allSubs=[...proposals.map(p=>({...p,_type:"proposal"})),...eois.map(e=>({...e,_type:"eoi"}))];
+      const filteredSubs=allSubs.filter(a=>{const q=search.toLowerCase();const mQ=!q||[a.org,a.title,a.community,a.pi_name,a.code,a.call_id].some(f=>f?.toLowerCase().includes(q));return mQ&&(!filterStage||a.stage===filterStage);});
+      const totalDays=allSubs.reduce((s,a)=>s+Number(a.days_requested||0),0);
+      const byStage=k=>allSubs.filter(a=>a.stage===k).length;
+
+      const ADMIN_TABS=[{key:"calls",label:"Calls",icon:"📢"},{key:"proposals",label:"Proposals",icon:"📋"},{key:"eois",label:"EOIs",icon:"💡"},{key:"season",label:"Season",icon:"📅"},{key:"news",label:"News",icon:"📰"}];
+
+      return (
+        <div style={{animation:"fadeUp .4s ease"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12}}>
+            <div><div style={{fontSize:22,fontWeight:800,color:C.navy}}>Vessel Operations Dashboard</div><div style={{fontSize:13,color:C.muted}}>Signed in as {session.user?.email}</div></div>
+            <Btn variant="ghost" onClick={handleLogout} style={{fontSize:12}}>Sign Out</Btn>
+          </div>
+          {IS_DEMO&&<DemoBanner/>}
+
+          {/* Stats */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:24}}>
+            {[["Proposals",proposals.length,C.ocean],["EOIs",eois.length,C.gold],["Pending",byStage("received")+byStage("review"),C.sky],["Approved",byStage("approved")+byStage("invited"),C.teal],["Total Days",totalDays,C.ink]].map(([l,v,col])=>
+              <Card key={l} style={{textAlign:"center",padding:"14px 10px"}}><div style={{fontSize:24,fontWeight:900,color:col}}>{v}</div><div style={{fontSize:10,color:C.muted,marginTop:3,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase"}}>{l}</div></Card>
+            )}
+          </div>
+
+          {/* Admin sub-tabs */}
+          <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:`2px solid ${C.line}`,paddingBottom:0}}>
+            {ADMIN_TABS.map(t=><button key={t.key} onClick={()=>{setAdminTab(t.key);setSelectedSub(null);setEditingCall(null);setSeasonForm(null);setEditingNews(null);}} style={{background:adminTab===t.key?C.ice:"transparent",border:"none",borderBottom:adminTab===t.key?`3px solid ${C.ocean}`:"3px solid transparent",color:adminTab===t.key?C.ocean:C.muted,padding:"10px 18px",fontSize:13,fontWeight:700,cursor:"pointer"}}>{t.icon} {t.label}</button>)}
+          </div>
+
+          {/* ── MANAGE CALLS ────────────── */}
+          {adminTab==="calls"&&(
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+                <div style={{fontSize:16,fontWeight:700,color:C.ink}}>All Calls for Proposals & EOIs</div>
+                <div style={{display:"flex",gap:8}}>
+                  <Btn onClick={()=>startNewCall("proposal")} style={{fontSize:12,padding:"8px 14px"}}>+ New Call for Proposals</Btn>
+                  <Btn variant="secondary" onClick={()=>startNewCall("eoi")} style={{fontSize:12,padding:"8px 14px"}}>+ New EOI Call</Btn>
+                </div>
+              </div>
+
+              {editingCall&&(
+                <Card style={{marginBottom:20,borderLeft:`4px solid ${C.gold}`}}>
+                  <SecTitle color={C.gold}>{editingCall==="new"?"Create New Call":"Edit Call"}</SecTitle>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
+                    <Fld label="Call Type"><Sel value={callForm.call_type} onChange={e=>cf("call_type",e.target.value)}><option value="proposal">Call for Proposals</option><option value="eoi">Expression of Interest</option></Sel></Fld>
+                    <Fld label="Status"><Sel value={callForm.status} onChange={e=>cf("status",e.target.value)}><option value="open">Open</option><option value="closed">Closed</option><option value="draft">Draft</option></Sel></Fld>
+                    <Fld label="Season"><Inp value={callForm.season} onChange={e=>cf("season",e.target.value)} placeholder="2026"/></Fld>
+                    <Fld label="Deadline"><Inp type="date" value={callForm.deadline} onChange={e=>cf("deadline",e.target.value)}/></Fld>
+                  </div>
+                  <Fld label="Title"><Inp value={callForm.title} onChange={e=>cf("title",e.target.value)} placeholder="e.g. 2026 Sailing Season — Call for Research Proposals"/></Fld>
+                  <Fld label="Description"><Txta value={callForm.description} onChange={e=>cf("description",e.target.value)} style={{minHeight:120}} placeholder="Full description of the call…"/></Fld>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
+                    <Fld label="Eligible Applicants"><Txta value={callForm.eligible} onChange={e=>cf("eligible",e.target.value)} style={{minHeight:60}} placeholder="Who can apply?"/></Fld>
+                    <Fld label="Requirements"><Txta value={callForm.requirements} onChange={e=>cf("requirements",e.target.value)} style={{minHeight:60}} placeholder="What must be submitted?"/></Fld>
+                  </div>
+                  <Fld label="Contact Email"><Inp value={callForm.contact} onChange={e=>cf("contact",e.target.value)}/></Fld>
+                  <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+                    <Btn variant="ghost" onClick={()=>setEditingCall(null)}>Cancel</Btn>
+                    <Btn onClick={saveCall} loading={callSaving}>{callSaved?"✓ Saved!":editingCall==="new"?"Publish Call":"Save Changes"}</Btn>
+                  </div>
+                </Card>
+              )}
+
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {calls.map(c=>(
+                  <div key={c.id} style={{background:"#fff",border:`1.5px solid ${C.line}`,borderRadius:10,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                    <div style={{minWidth:0,flex:1}}>
+                      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}>
+                        <Tag color={c.call_type==="proposal"?C.ocean:C.gold}>{c.call_type==="proposal"?"CFP":"EOI"}</Tag>
+                        <Tag color={c.status==="open"?C.teal:c.status==="draft"?C.muted:C.danger}>{c.status}</Tag>
+                        <span style={{fontSize:11,color:C.muted,fontFamily:"monospace"}}>{c.id}</span>
+                      </div>
+                      <div style={{fontSize:14,fontWeight:700,color:C.ink}}>{c.title}</div>
+                      <div style={{fontSize:12,color:C.muted,marginTop:2}}>Season: {c.season} · Deadline: {c.deadline} · Posted: {c.posted}</div>
+                    </div>
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <Btn variant="ghost" onClick={()=>startEditCall(c)} style={{fontSize:12,padding:"6px 12px"}}>Edit</Btn>
+                      <Btn variant="ghost" onClick={()=>setCalls(p=>p.map(x=>x.id===c.id?{...x,status:x.status==="open"?"closed":"open"}:x))} style={{fontSize:12,padding:"6px 12px"}}>{c.status==="open"?"Close":"Reopen"}</Btn>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+
+          {adminTab==="season"&&<div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:700}}>Sailing Season</div>{!seasonForm&&<Btn onClick={()=>{setSeasonForm(JSON.parse(JSON.stringify(season)));setSeasonSaved(false);}} style={{fontSize:12,padding:"8px 14px"}}>Edit Season</Btn>}</div>
+            {!seasonForm?<div><Card style={{marginBottom:14}}><Lbl c="Year"/><div style={{fontSize:20,fontWeight:800}}>{season.year}</div><div style={{fontSize:13,color:C.muted,marginTop:6}}>{season.summary}</div></Card><Card style={{marginBottom:14}}><Lbl c="Months"/><div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:8}}>{season.months.map(m=><div key={m.month} style={{padding:"10px 14px",background:C.ice,borderRadius:8,textAlign:"center"}}><div>{m.icon} <strong>{m.month}</strong></div><Tag color={m.status==="open"?C.teal:C.gold}>{m.status}</Tag></div>)}</div></Card><Card><Lbl c="Deadlines"/>{season.deadlines.map((d,i)=><div key={i} style={{padding:"6px 0",fontSize:13}}><strong>{d.date}</strong> — {d.label}</div>)}</Card></div>
+            :<Card style={{borderLeft:"4px solid "+C.gold}}><SecTitle color={C.gold}>Edit Season</SecTitle>
+              <Fld label="Year"><Inp value={seasonForm.year} onChange={e=>setSeasonForm(p=>({...p,year:e.target.value}))}/></Fld>
+              <Fld label="Summary"><Txta value={seasonForm.summary} onChange={e=>setSeasonForm(p=>({...p,summary:e.target.value}))}/></Fld>
+              <Fld label="Region"><Txta value={seasonForm.region} onChange={e=>setSeasonForm(p=>({...p,region:e.target.value}))} style={{minHeight:80}}/></Fld>
+              <div style={{fontSize:13,fontWeight:700,color:C.ocean,marginBottom:10,marginTop:16}}>MONTHS</div>
+              {seasonForm.months.map((m,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"80px 100px 60px 1fr 36px",gap:8,marginBottom:8}}><Inp value={m.month} onChange={e=>{const ms=[...seasonForm.months];ms[i]={...ms[i],month:e.target.value};setSeasonForm(p=>({...p,months:ms}));}}/><Sel value={m.status} onChange={e=>{const ms=[...seasonForm.months];ms[i]={...ms[i],status:e.target.value};setSeasonForm(p=>({...p,months:ms}));}}><option value="open">Open</option><option value="limited">Limited</option><option value="closed">Closed</option></Sel><Inp value={m.icon} onChange={e=>{const ms=[...seasonForm.months];ms[i]={...ms[i],icon:e.target.value};setSeasonForm(p=>({...p,months:ms}));}} style={{textAlign:"center"}}/><Inp value={m.desc} onChange={e=>{const ms=[...seasonForm.months];ms[i]={...ms[i],desc:e.target.value};setSeasonForm(p=>({...p,months:ms}));}}/><button onClick={()=>setSeasonForm(p=>({...p,months:p.months.filter((_,x)=>x!==i)}))} style={{background:"none",border:"1.5px solid "+C.line,borderRadius:8,color:C.muted,fontSize:18,cursor:"pointer"}}>×</button></div>)}
+              <button onClick={()=>setSeasonForm(p=>({...p,months:[...p.months,{month:"",status:"open",desc:"",icon:"📅"}]}))} style={{background:"none",border:"1.5px dashed "+C.ocean,borderRadius:8,color:C.ocean,fontSize:12,fontWeight:700,padding:"6px 12px",cursor:"pointer",marginBottom:16}}>+ Month</button>
+              <div style={{fontSize:13,fontWeight:700,color:C.ocean,marginBottom:10,marginTop:8}}>DEADLINES</div>
+              {seasonForm.deadlines.map((d,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"180px 1fr 110px 36px",gap:8,marginBottom:8}}><Inp value={d.date} onChange={e=>{const ds=[...seasonForm.deadlines];ds[i]={...ds[i],date:e.target.value};setSeasonForm(p=>({...p,deadlines:ds}));}}/><Inp value={d.label} onChange={e=>{const ds=[...seasonForm.deadlines];ds[i]={...ds[i],label:e.target.value};setSeasonForm(p=>({...p,deadlines:ds}));}}/><Sel value={d.priority} onChange={e=>{const ds=[...seasonForm.deadlines];ds[i]={...ds[i],priority:e.target.value};setSeasonForm(p=>({...p,deadlines:ds}));}}><option value="high">High</option><option value="normal">Normal</option></Sel><button onClick={()=>setSeasonForm(p=>({...p,deadlines:p.deadlines.filter((_,x)=>x!==i)}))} style={{background:"none",border:"1.5px solid "+C.line,borderRadius:8,color:C.muted,fontSize:18,cursor:"pointer"}}>×</button></div>)}
+              <button onClick={()=>setSeasonForm(p=>({...p,deadlines:[...p.deadlines,{date:"",label:"",priority:"normal"}]}))} style={{background:"none",border:"1.5px dashed "+C.ocean,borderRadius:8,color:C.ocean,fontSize:12,fontWeight:700,padding:"6px 12px",cursor:"pointer",marginBottom:16}}>+ Deadline</button>
+              <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="ghost" onClick={()=>setSeasonForm(null)}>Cancel</Btn><Btn onClick={()=>{setSeason(seasonForm);setSeasonSaved(true);setTimeout(()=>setSeasonSaved(false),2000);}}>{seasonSaved?"✓ Saved!":"Save Season"}</Btn></div>
+            </Card>}
+          </div>}
+
+          {adminTab==="news"&&<div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:700}}>News & Updates</div><Btn onClick={()=>{setEditingNews("new");setNewsForm({title:"",category:"announcement",pinned:false,body:"",date:new Date().toISOString().split("T")[0]});}} style={{fontSize:12,padding:"8px 14px"}}>+ New Post</Btn></div>
+            {editingNews&&<Card style={{marginBottom:20,borderLeft:"4px solid "+C.gold}}><SecTitle color={C.gold}>{editingNews==="new"?"New":"Edit"} Post</SecTitle><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}><Fld label="Category"><Sel value={newsForm.category} onChange={e=>nf("category",e.target.value)}>{Object.entries(newsCats).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Sel></Fld><Fld label="Date"><Inp type="date" value={newsForm.date} onChange={e=>nf("date",e.target.value)}/></Fld></div><Fld label="Title"><Inp value={newsForm.title} onChange={e=>nf("title",e.target.value)}/></Fld><Fld label="Body"><Txta value={newsForm.body} onChange={e=>nf("body",e.target.value)} style={{minHeight:120}}/></Fld><label style={{display:"flex",alignItems:"center",gap:8,fontSize:14,cursor:"pointer",marginBottom:16}}><input type="checkbox" checked={newsForm.pinned||false} onChange={e=>nf("pinned",e.target.checked)} style={{accentColor:C.ocean}}/>Pin to Vessel homepage</label><div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="ghost" onClick={()=>setEditingNews(null)}>Cancel</Btn><Btn onClick={()=>{if(editingNews==="new")setNews(p=>[{...newsForm,id:"NEWS-"+String(Date.now()).slice(-6)},...p]);else setNews(p=>p.map(n=>n.id===editingNews?{...newsForm,id:editingNews}:n));setNewsSaved(true);setTimeout(()=>{setEditingNews(null);setNewsSaved(false);},1200);}}>{newsSaved?"✓ Saved!":"Save"}</Btn></div></Card>}
+            {news.map(n=><div key={n.id} style={{background:"#fff",border:"1.5px solid "+C.line,borderRadius:10,padding:"14px 18px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div style={{flex:1,minWidth:0}}><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}><Tag color={C.ocean}>{newsCats[n.category]||n.category}</Tag>{n.pinned&&<Tag color={C.gold}>Pinned</Tag>}<span style={{fontSize:11,color:C.muted}}>{n.date}</span></div><div style={{fontSize:14,fontWeight:700,color:C.ink}}>{n.title}</div></div><div style={{display:"flex",gap:6}}><Btn variant="ghost" onClick={()=>{setEditingNews(n.id);setNewsForm({...n});setNewsSaved(false);}} style={{fontSize:12,padding:"6px 12px"}}>Edit</Btn><Btn variant="ghost" onClick={()=>setNews(p=>p.filter(x=>x.id!==n.id))} style={{fontSize:12,padding:"6px 12px",color:C.danger}}>Delete</Btn></div></div>)}
+          </div>}
+
+          {/* ── REVIEW PROPOSALS / EOIS ─── */}
+          {(adminTab==="proposals"||adminTab==="eois")&&(()=>{
+            const isP=adminTab==="proposals";
+            const items=isP?proposals:eois;
+            const stages=isP?PROPOSAL_STAGES:EOI_STAGES;
+            const filteredItems=items.filter(a=>{const q=search.toLowerCase();const mQ=!q||[a.org,a.title,a.community,a.pi_name,a.code,a.call_id].some(f=>f?.toLowerCase().includes(q));return mQ&&(!filterStage||a.stage===filterStage);});
+            return (
+              <div style={{display:"grid",gridTemplateColumns:selectedSub?"1fr 420px":"1fr",gap:20,alignItems:"start"}}>
+                <div>
+                  <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+                    <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search org, PI, title, community, code…" style={{flex:1,minWidth:200}}/>
+                    <Sel value={filterStage} onChange={e=>setFilterStage(e.target.value)} style={{width:"auto",minWidth:165}}>
+                      <option value="">All Stages</option>{stages.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
+                    </Sel>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {filteredItems.length===0&&<div style={{color:C.muted,fontSize:14,padding:"20px 0",textAlign:"center"}}>No {isP?"proposals":"EOIs"} match your filters.</div>}
+                    {filteredItems.map(app=>(
+                      <div key={app.id} onClick={()=>openSub(app)} style={{background:selectedSub?.id===app.id?C.ice:"#fff",border:`1.5px solid ${selectedSub?.id===app.id?C.ocean:C.line}`,borderRadius:10,padding:"14px 18px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                        <div style={{minWidth:0}}>
+                          <div style={{fontWeight:700,fontSize:14,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{app.title}</div>
+                          <div style={{fontSize:12,color:C.muted,marginTop:2}}>{app.org} · {app.pi_name}</div>
+                          <div style={{fontSize:11,color:C.muted,marginTop:2,fontFamily:"monospace"}}>{app.id} · {app.call_id}</div>
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0}}>
+                          <Tag color={STAGE_COLORS[app.stage]}>{stages.find(s=>s.key===app.stage)?.short}</Tag>
+                          <div style={{fontSize:12,fontWeight:700,color:C.gold}}>{app.days_requested} days</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {selectedSub&&(
+                  <Card style={{position:"sticky",top:20,padding:22,maxHeight:"90vh",overflowY:"auto"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
+                      <div><div style={{fontSize:15,fontWeight:800,color:C.ink,lineHeight:1.3}}>{selectedSub.title}</div><div style={{fontSize:12,color:C.muted,marginTop:2,fontFamily:"monospace"}}>{selectedSub.id}</div></div>
+                      <button onClick={()=>setSelectedSub(null)} style={{background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
+                    </div>
+                    <div style={{marginBottom:10,display:"flex",gap:6}}><Tag color={isP?C.ocean:C.gold}>{isP?"Full Proposal":"EOI"}</Tag><Tag color={C.muted}>{selectedSub.call_id}</Tag></div>
+
+                    {[["Organization",selectedSub.org],["PI",selectedSub.pi_name],["Affiliation",selectedSub.affiliation||"—"],["Email",selectedSub.email],["Phone",selectedSub.phone||"—"],["Community",selectedSub.community],["Category",RESEARCH_CATEGORIES.find(c=>c.key===selectedSub.research_category)?.label||selectedSub.research_category||"—"],["Region",selectedSub.region||"—"],["Scientists",selectedSub.num_scientists||"—"],["Dates",`${selectedSub.proposed_start} → ${selectedSub.proposed_end}`],["Days",selectedSub.days_requested],["Funding",selectedSub.funding_secured?"Secured":"Pending"],["Source",selectedSub.funding_source||"—"],["NRI Licence",selectedSub.has_permit?(selectedSub.permit_details||"Yes"):"Not yet"],["Submitted",selectedSub.submitted]].map(([k,v])=>
+                      <div key={k} style={{marginBottom:8}}><Lbl c={k}/><div style={{fontSize:13,color:C.ink,wordBreak:"break-word"}}>{String(v)}</div></div>
+                    )}
+
+                    {selectedSub.equipment_needed?.length>0&&<div style={{marginBottom:12}}><Lbl c="Equipment"/><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{selectedSub.equipment_needed.map(eq=><span key={eq} style={{fontSize:11,padding:"3px 8px",background:C.ice,borderRadius:6,color:C.ocean,fontWeight:600}}>{eq}</span>)}</div></div>}
+                    <div style={{marginBottom:12}}><Lbl c="Description"/><div style={{fontSize:12,color:C.muted,lineHeight:1.6,maxHeight:80,overflow:"auto"}}>{selectedSub.description}</div></div>
+                    {selectedSub.outreach_plan&&<div style={{marginBottom:12}}><Lbl c="Community Engagement"/><div style={{fontSize:12,color:C.muted,lineHeight:1.6,maxHeight:60,overflow:"auto"}}>{selectedSub.outreach_plan}</div></div>}
+
+                    <div style={{borderTop:`1.5px solid ${C.line}`,paddingTop:16,marginTop:4}}>
+                      <Fld label="Update Stage"><Sel value={newStage} onChange={e=>setNewStage(e.target.value)}>{stages.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</Sel></Fld>
+                      <Fld label="Program Note (visible to applicant)"><Txta value={note} onChange={e=>setNote(e.target.value)} placeholder="Optional note…" style={{minHeight:70}}/></Fld>
+                      <Err msg={saveErr}/>
+                      <Btn onClick={saveSub} loading={saving} style={{width:"100%",marginTop:saveErr?8:0}}>{saved?"✓ Saved!":"Save Update"}</Btn>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ROOT APP
+    // ══════════════════════════════════════════════════════════
+    function NuliajukPortal() {
+      const [tab,setTab]=useState("vessel");
+      const [calls,setCalls]=useState(DEMO_CALLS);
+      const [proposals,setProposals]=useState(DEMO_PROPOSALS);
+      const [eois,setEois]=useState(DEMO_EOIS);
+      const [season,setSeason]=useState({year:"2026",summary:"The RV Nuliajuk operates in eastern Arctic waters during the open-water season, typically July through October.",region:"The RV Nuliajuk operates primarily in Canada's eastern Arctic, including Baffin Bay, Davis Strait, Cumberland Sound, Frobisher Bay, Hudson Strait, and surrounding coastal waters.\n\nThe vessel is available to communities, academic institutions, government agencies, and non-government organizations.",months:[{month:"July",status:"open",desc:"Early season. Ice conditions variable.",icon:"🧊"},{month:"August",status:"open",desc:"Peak season. Widest navigable range.",icon:"⛵"},{month:"September",status:"open",desc:"Late season. Deeper-water surveys.",icon:"🌊"},{month:"October",status:"limited",desc:"Shoulder season. Weather dependent.",icon:"❄️"}],deadlines:[{date:"March 31, 2026",label:"EOI deadline",priority:"high"},{date:"April 30, 2026",label:"Full Proposal deadline",priority:"high"},{date:"May 31, 2026",label:"Scheduling decisions",priority:"high"},{date:"July 1, 2026",label:"Season commencement",priority:"normal"}]});
+      const [news,setNews]=useState([{id:"NEWS-003",date:"2026-03-10",title:"2026 Call for Proposals Now Open",category:"announcement",pinned:true,body:"The 2026 Call for Research Proposals and EOIs are now open. Deadline: April 30 (Proposals), March 31 (EOIs)."},{id:"NEWS-002",date:"2026-02-15",title:"Multibeam Sonar Upgraded",category:"vessel_update",pinned:false,body:"The Kongsberg EM2040C has undergone annual calibration and firmware upgrade."},{id:"NEWS-001",date:"2026-01-20",title:"2025 Season Summary",category:"season_report",pinned:false,body:"Five research programs completed across 78 vessel-days in 2025."}]);
+      const NEWS_CATS_MAP={announcement:"📢 Announcement",vessel_update:"🔧 Vessel Update",season_report:"📊 Season Report",community:"🤝 Community",general:"📌 General"};
+
+      const NAV=[
+        {key:"vessel",label:"Vessel",icon:"🚢"},
+        {key:"season",label:"Season",icon:"📅"},
+        {key:"news",label:"News",icon:"📰"},
+        {key:"proposals",label:"Proposals",icon:"📋"},
+        {key:"eoi",label:"Expressions of Interest",icon:"💡"},
+        {key:"status",label:"Check Status",icon:"🔍"},
+        {key:"admin",label:"Admin",icon:"⚙️"},
+      ];
+      return (
+        <div style={{minHeight:"100vh",background:C.snow,color:C.ink}}>
+          <div style={{background:"linear-gradient(135deg, #0A1E33 0%, #0B2641 100%)",color:"#fff"}}>
+            <div style={{maxWidth:1160,margin:"0 auto",padding:"0 24px"}}>
+              <div style={{padding:"18px 0 0",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+                <div style={{background:"linear-gradient(135deg,#0A5E8C,#1A8A5C)",borderRadius:10,padding:"8px 12px",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>⚓</div>
+                <div>
+                  <div style={{fontSize:12,letterSpacing:".14em",textTransform:"uppercase",color:"rgba(255,255,255,.45)",fontWeight:600}}>Government of Nunavut · Fisheries & Sealing Division</div>
+                  <div style={{fontSize:20,fontWeight:800,fontFamily:"'DM Serif Display',serif",letterSpacing:".01em"}}>RV Nuliajuk — Research Vessel Portal</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:2,marginTop:16,overflowX:"auto"}}>
+                {NAV.map(n=><button key={n.key} onClick={()=>setTab(n.key)} style={{background:tab===n.key?"rgba(255,255,255,.1)":"transparent",border:"none",borderBottom:tab===n.key?"3px solid #F5A623":"3px solid transparent",color:tab===n.key?"#fff":"rgba(255,255,255,.55)",padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:".04em",whiteSpace:"nowrap",transition:"all .15s"}}>{n.icon} {n.label}</button>)}
+              </div>
+            </div>
+          </div>
+
+          <div style={{maxWidth:1160,margin:"0 auto",padding:"32px 24px 60px"}}>
+            {tab==="vessel" && <VesselView news={news}/>}
+            {tab==="season" && <SeasonView season={season}/>}
+            {tab==="news" && <NewsView news={news} catMap={NEWS_CATS_MAP}/>}
+            {tab==="proposals" && <CallListing calls={calls} callType="proposal" label="Call for Proposals" onSubmit={data=>setProposals(p=>[...p,data])}/>}
+            {tab==="eoi" && <CallListing calls={calls} callType="eoi" label="Expression of Interest" onSubmit={data=>setEois(p=>[...p,data])}/>}
+            {tab==="status" && <StatusView proposals={proposals} eois={eois}/>}
+            {tab==="admin" && <AdminView calls={calls} setCalls={setCalls} proposals={proposals} setProposals={setProposals} eois={eois} setEois={setEois} season={season} setSeason={setSeason} news={news} setNews={setNews} newsCats={NEWS_CATS_MAP}/>}
+          </div>
+
+          <div style={{borderTop:`1.5px solid ${C.line}`,padding:"28px 24px",textAlign:"center",background:"#fff"}}>
+            <div style={{fontSize:12,color:C.muted,marginBottom:10}}>Fisheries & Sealing Division · Department of Community Services · Government of Nunavut</div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:8}}>Questions about vessel operations or proposals? Contact us.</div>
+            <div style={{display:"flex",justifyContent:"center",gap:24,flexWrap:"wrap"}}>
+              <a href="mailto:nuliajuk@gov.nu.ca" style={{color:C.ocean,fontSize:14,fontWeight:700,textDecoration:"none"}}>✉ nuliajuk@gov.nu.ca</a>
+              <span style={{color:C.ocean,fontSize:14,fontWeight:700}}>📞 +1 (867) 979-7728</span>
+            </div>
+            <div style={{fontSize:11,color:C.muted,marginTop:12}}><a href="https://www.gov.nu.ca/en/industry/fisheries-and-sealing" target="_blank" rel="noopener" style={{color:C.ocean,textDecoration:"none"}}>gov.nu.ca/en/industry/fisheries-and-sealing</a></div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<NuliajukPortal/>);
+  </script>
+</body>
+</html>
