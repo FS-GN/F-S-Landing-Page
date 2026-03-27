@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commercial Fisheries Freight Subsidy — Government of Nunavut</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #F7FAF8; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #1A2820; }
+    input, select, textarea, button { font-family: inherit; }
+    input[type="file"] { width: 100%; padding: 10px 12px; border: 1.5px dashed #D4E6DF; border-radius: 8px; font-size: 13px; color: #6B8A7E; background: #EBF5F1; cursor: pointer; }
+    input[type="file"]:hover { border-color: #2A7D6B; }
+    input[type="radio"] { accent-color: #2A7D6B; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useCallback, useRef } = React;
+
+    // =========================================================
+    // CONFIGURATION — replace with your Supabase project values
+    // =========================================================
+    const SUPABASE_URL      = "YOUR_SUPABASE_URL";
+    const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+    // =========================================================
+
+    const IS_DEMO = SUPABASE_URL === "YOUR_SUPABASE_URL";
+
+    // ── Supabase helpers ──────────────────────────────────────
+    async function sbFetch(path, opts = {}, token = null) {
+      const res = await fetch(`${SUPABASE_URL}${path}`, {
+        ...opts,
+        headers: { "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${token||SUPABASE_ANON_KEY}`, ...opts.headers },
+      });
+      if (!res.ok) { const e = await res.json().catch(()=>({message:res.statusText})); throw new Error(e.message||e.error_description||"Request failed"); }
+      return res.status === 204 ? null : res.json();
+    }
+    const submitApplication = (data) => sbFetch("/rest/v1/freight_applications", { method:"POST", body:JSON.stringify(data), headers:{"Prefer":"return=minimal"} });
+    const lookupStatus = async (code) => { const r = await sbFetch("/rest/v1/rpc/get_freight_status",{method:"POST",body:JSON.stringify({lookup_code:code})}); return Array.isArray(r)?r[0]:null; };
+    const adminSignIn = async (email,pw) => { const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON_KEY},body:JSON.stringify({email,password:pw})}); if(!res.ok){const e=await res.json();throw new Error(e.error_description||"Invalid credentials");} return res.json(); };
+    const adminSignOut = (token) => fetch(`${SUPABASE_URL}/auth/v1/logout`,{method:"POST",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${token}`}}).catch(()=>{});
+    const fetchAllApps = (token) => sbFetch("/rest/v1/freight_applications?order=created_at.desc",{method:"GET"},token);
+    const updateApp = (id,patch,token) => sbFetch(`/rest/v1/freight_applications?id=eq.${encodeURIComponent(id)}`,{method:"PATCH",body:JSON.stringify(patch),headers:{"Prefer":"return=minimal"}},token);
+
+    // ── Demo data ─────────────────────────────────────────────
+    const DEMO_APPS = [
+      { id:"CFFS-2026-0001", code:"QIK3-PANQ", is_nunavut_resident:"yes", applicant_type:"business", org:"Pangnirtung Fisheries Ltd.", community:"Pangnirtung (Panniqtuuq)", region:"Qikiqtaaluk", contact:"Annie Akulukjuk", email:"annie@pangfish.ca", phone:"867-473-8551", business_reg:"NU-20198432", address:"Box 240, Pangnirtung, NU X0A 0R0", waybills:[{date:"2025-09-12",waybill_num:"WB-44821",destination:"Ottawa",freight:2450,fuel_surcharge:185,navcan:95,total:2730,subsidy:1365},{date:"2025-09-18",waybill_num:"WB-44965",destination:"Montreal",freight:2680,fuel_surcharge:202,navcan:95,total:2977,subsidy:1488.50},{date:"2025-10-03",waybill_num:"WB-45290",destination:"Ottawa",freight:3100,fuel_surcharge:234,navcan:95,total:3429,subsidy:1714.50}], charters:[], total_freight:9136, total_subsidy:4568, fish_type:"Turbot", stage:"assessment", notes:"Waybills verified. Pending final freight rate confirmation.", submitted:"2026-01-20", messages:[{id:"msg-001",type:"doc_request",from:"admin",sender:"J. Evaluarjuk",text:"We need a clearer copy of waybill WB-44821 — the destination label is partially illegible. Please also provide the original invoice from Canadian North for the October 3 shipment.",documents:["Waybill WB-44821 (clear copy)","Canadian North invoice (Oct 3, 2025)"],status:"pending",timestamp:"2026-02-10T14:30:00"},{id:"msg-002",type:"message",from:"admin",sender:"J. Evaluarjuk",text:"Your freight rates have been verified against the current carrier schedule. We are proceeding with assessment and will update you once the missing documents are received.",documents:[],status:"read",timestamp:"2026-02-12T09:15:00"}] },
+      { id:"CFFS-2026-0002", code:"KIV7-RANI", is_nunavut_resident:"yes", applicant_type:"hto", org:"Rankin Inlet HTO", community:"Rankin Inlet (Kangiqliniq)", region:"Kivalliq", contact:"Thomas Niuqtuq", email:"t.niuqtuq@rihto.ca", phone:"867-645-2840", business_reg:"", address:"General Delivery, Rankin Inlet, NU X0C 0G0", waybills:[{date:"2025-08-20",waybill_num:"WB-38701",destination:"Winnipeg",freight:1850,fuel_surcharge:140,navcan:75,total:2065,subsidy:1032.50},{date:"2025-08-25",waybill_num:"WB-38844",destination:"Winnipeg",freight:2100,fuel_surcharge:158,navcan:75,total:2333,subsidy:1166.50}], charters:[{date:"2025-08-18",invoice:"CHR-2025-114",amount:8500}], total_freight:12898, total_subsidy:6449, fish_type:"Arctic Char", stage:"committee", notes:"Charter flight invoice under review. Strong application.", submitted:"2025-12-05", messages:[{id:"msg-003",type:"question",from:"admin",sender:"M. Aulaqiaq",text:"Can you confirm whether the charter flight on August 18 was exclusively for transporting fish/equipment to the harvest site, or was it a mixed-use flight? This affects eligibility under the policy.",documents:[],status:"pending",timestamp:"2026-01-08T11:00:00"}] },
+      { id:"CFFS-2026-0003", code:"KIT2-CAMB", is_nunavut_resident:"yes", applicant_type:"individual", org:"James Ehaloak", community:"Cambridge Bay", region:"Kitikmeot", contact:"James Ehaloak", email:"j.ehaloak@northmail.ca", phone:"867-983-2210", business_reg:"", address:"Box 88, Cambridge Bay, NU X0B 0C0", waybills:[{date:"2025-07-15",waybill_num:"WB-31004",destination:"Yellowknife",freight:980,fuel_surcharge:74,navcan:50,total:1104,subsidy:552},{date:"2025-08-02",waybill_num:"WB-31887",destination:"Edmonton",freight:1420,fuel_surcharge:107,navcan:65,total:1592,subsidy:796}], charters:[], total_freight:2696, total_subsidy:1348, fish_type:"Lake Trout", stage:"disbursed", notes:"Approved and disbursed Feb 28, 2026.", submitted:"2025-11-14", messages:[] },
+    ];
+
+    // ── Constants ─────────────────────────────────────────────
+    const STAGES = [
+      {key:"received",label:"Application Received",short:"Received"},
+      {key:"eligibility",label:"Eligibility Review",short:"Eligibility"},
+      {key:"assessment",label:"Freight Verification",short:"Verification"},
+      {key:"committee",label:"Approval Review",short:"Review"},
+      {key:"decision",label:"Decision",short:"Decision"},
+      {key:"agreement",label:"Payment Processing",short:"Processing"},
+      {key:"disbursed",label:"Funds Disbursed",short:"Disbursed"},
+    ];
+    const COMMUNITIES = ["Arviat","Baker Lake","Cambridge Bay","Cape Dorset (Kinngait)","Chesterfield Inlet","Clyde River (Kangiqtugaapik)","Coral Harbour (Salliq)","Gjoa Haven (Uqsuqtuuq)","Grise Fiord (Aujuittuq)","Hall Beach (Sanirajak)","Igloolik (Iglulik)","Iqaluit","Kimmirut","Kugaaruk","Kugluktuk","Naujaat (Repulse Bay)","Pangnirtung (Panniqtuuq)","Pond Inlet (Mittimatalik)","Qikiqtarjuaq","Rankin Inlet (Kangiqliniq)","Resolute (Qausuittuq)","Sanikiluaq","Taloyoak (Spence Bay)","Whale Cove (Tikirarjuaq)"];
+    const REGIONS = {"Arviat":"Kivalliq","Baker Lake":"Kivalliq","Cambridge Bay":"Kitikmeot","Cape Dorset (Kinngait)":"Qikiqtaaluk","Chesterfield Inlet":"Kivalliq","Clyde River (Kangiqtugaapik)":"Qikiqtaaluk","Coral Harbour (Salliq)":"Kivalliq","Gjoa Haven (Uqsuqtuuq)":"Kitikmeot","Grise Fiord (Aujuittuq)":"Qikiqtaaluk","Hall Beach (Sanirajak)":"Qikiqtaaluk","Igloolik (Iglulik)":"Qikiqtaaluk","Iqaluit":"Qikiqtaaluk","Kimmirut":"Qikiqtaaluk","Kugaaruk":"Kitikmeot","Kugluktuk":"Kitikmeot","Naujaat (Repulse Bay)":"Kivalliq","Pangnirtung (Panniqtuuq)":"Qikiqtaaluk","Pond Inlet (Mittimatalik)":"Qikiqtaaluk","Qikiqtarjuaq":"Qikiqtaaluk","Rankin Inlet (Kangiqliniq)":"Kivalliq","Resolute (Qausuittuq)":"Qikiqtaaluk","Sanikiluaq":"Qikiqtaaluk","Taloyoak (Spence Bay)":"Kitikmeot","Whale Cove (Tikirarjuaq)":"Kivalliq"};
+    const GATEWAY_CITIES = ["Ottawa","Montreal","Winnipeg","Yellowknife","Edmonton","Between Nunavut Communities"];
+    const APPLICANT_TYPES = [["individual","Nunavut Resident"],["business","Registered Nunavut Business"],["hto","HTO / Society / Not-for-Profit"]];
+    const FISH_TYPES = ["Arctic Char","Turbot (Greenland Halibut)","Shrimp","Lake Trout","Whitefish","Northern Pike","Shellfish","Other"];
+    const STAGE_COLORS = {received:"#2980B9",eligibility:"#2980B9",assessment:"#C4882A",committee:"#C4882A",decision:"#2A7D6B",agreement:"#3BAE8E",disbursed:"#3BAE8E"};
+    const C = {ink:"#1A2820",forest:"#1D4D35",teal:"#2A7D6B",mint:"#3BAE8E",ice:"#EBF5F1",snow:"#F7FAF8",gold:"#C4882A",amber:"#F5A623",line:"#D4E6DF",muted:"#6B8A7E",danger:"#C0392B",sky:"#2980B9",navy:"#1B3A5C"};
+
+    // ── Shared UI ─────────────────────────────────────────────
+    const Lbl = ({c}) => <div style={{fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:C.muted,marginBottom:5}}>{c}</div>;
+    const Inp = ({style,...p}) => <input style={{width:"100%",padding:"10px 12px",border:`1.5px solid ${C.line}`,borderRadius:8,fontSize:14,color:C.ink,background:"#fff",outline:"none",boxSizing:"border-box",...style}} onFocus={e=>e.target.style.borderColor=C.teal} onBlur={e=>e.target.style.borderColor=C.line} {...p}/>;
+    const Sel = ({children,style,...p}) => <select style={{width:"100%",padding:"10px 12px",border:`1.5px solid ${C.line}`,borderRadius:8,fontSize:14,color:C.ink,background:"#fff",outline:"none",boxSizing:"border-box",appearance:"none",...style}} onFocus={e=>e.target.style.borderColor=C.teal} onBlur={e=>e.target.style.borderColor=C.line} {...p}>{children}</select>;
+    const Txta = ({style,...p}) => <textarea style={{width:"100%",padding:"10px 12px",border:`1.5px solid ${C.line}`,borderRadius:8,fontSize:14,color:C.ink,background:"#fff",outline:"none",boxSizing:"border-box",resize:"vertical",minHeight:90,...style}} onFocus={e=>e.target.style.borderColor=C.teal} onBlur={e=>e.target.style.borderColor=C.line} {...p}/>;
+    const Btn = ({variant="primary",style,loading,children,...p}) => { const vs={primary:{background:C.forest,color:"#fff",border:"none"},ghost:{background:"transparent",color:C.muted,border:`1.5px solid ${C.line}`}}; return <button disabled={loading} style={{padding:"10px 22px",borderRadius:8,fontSize:14,fontWeight:700,cursor:loading?"wait":"pointer",opacity:loading?0.7:1,...vs[variant],...style}} onMouseEnter={e=>{if(!loading)e.currentTarget.style.opacity="0.85"}} onMouseLeave={e=>e.currentTarget.style.opacity=loading?"0.7":"1"} {...p}>{loading?"…":children}</button>; };
+    const Card = ({children,style}) => <div style={{background:"#fff",borderRadius:14,border:`1.5px solid ${C.line}`,padding:28,...style}}>{children}</div>;
+    const Tag = ({color=C.teal,children}) => <span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,background:color+"18",color,fontSize:11,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase"}}>{children}</span>;
+    const Err = ({msg}) => msg ? <div style={{color:C.danger,fontSize:13,marginTop:8,padding:"8px 12px",background:"#fdf0ef",borderRadius:6,border:`1px solid ${C.danger}30`}}>⚠ {msg}</div> : null;
+    const Fld = ({error,label,hint,children}) => <div style={{marginBottom:18}}><Lbl c={label}/>{hint&&<div style={{fontSize:12,color:C.muted,marginBottom:6}}>{hint}</div>}{children}{error&&<div style={{color:C.danger,fontSize:12,marginTop:4}}>{error}</div>}</div>;
+    const SecTitle = ({color=C.gold,children}) => <div style={{fontSize:13,fontWeight:700,color,marginBottom:18,textTransform:"uppercase",letterSpacing:".08em",paddingBottom:10,borderBottom:`1.5px solid ${C.line}`}}>{children}</div>;
+    const DemoBanner = () => <div style={{background:"#fff8e1",border:`1.5px solid ${C.amber}`,borderRadius:10,padding:"12px 18px",marginBottom:24,fontSize:13,color:"#7a5200",display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:18}}>🔧</span><div><strong>Demo Mode</strong> — data resets on refresh. Add your Supabase credentials to the CONFIG block at the top of this file to go live.</div></div>;
+
+    const RadioGroup = ({name, value, onChange, options}) => (
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+        {options.map(([val,label]) => (
+          <label key={val} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"10px 16px",border:`1.5px solid ${value===val?C.teal:C.line}`,borderRadius:8,background:value===val?C.ice:"#fff",fontSize:14,fontWeight:value===val?700:400,color:value===val?C.teal:C.ink,flex:1,justifyContent:"center",transition:"all .15s",minWidth:140}}>
+            <input type="radio" name={name} value={val} checked={value===val} onChange={()=>onChange(val)} style={{accentColor:C.teal}}/>
+            {label}
+          </label>
+        ))}
+      </div>
+    );
+
+    // ── Pipeline ──────────────────────────────────────────────
+    function Pipeline({currentStage}) {
+      const idx = STAGES.findIndex(s=>s.key===currentStage);
+      return (
+        <div style={{overflowX:"auto",paddingBottom:8}}>
+          <div style={{display:"flex",alignItems:"flex-start",minWidth:560}}>
+            {STAGES.map((s,i)=>{
+              const done=i<idx,active=i===idx;
+              return (
+                <div key={s.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",position:"relative"}}>
+                  {i>0&&<div style={{position:"absolute",top:15,right:"50%",width:"100%",height:3,background:done||active?C.mint:C.line,zIndex:0}}/>}
+                  <div style={{width:30,height:30,borderRadius:"50%",background:active?C.teal:done?C.mint:C.line,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:active?`3px solid ${C.teal}`:"none",boxShadow:active?`0 0 0 4px ${C.teal}25`:"none"}}>
+                    {done&&<span style={{color:"#fff",fontSize:13,fontWeight:900}}>✓</span>}
+                    {active&&<span style={{width:8,height:8,borderRadius:"50%",background:"#fff",display:"block"}}/>}
+                  </div>
+                  <div style={{marginTop:7,fontSize:10,fontWeight:active?700:500,color:active?C.ink:done?C.teal:C.muted,textAlign:"center",lineHeight:1.3}}>{s.short}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Waybill Items ─────────────────────────────────────────
+    function WaybillItems({items,setItems,error}) {
+      const add = () => setItems(p=>[...p,{date:"",waybill_num:"",destination:"",freight:"",fuel_surcharge:"",navcan:""}]);
+      const remove = (i) => setItems(p=>p.filter((_,x)=>x!==i));
+      const update = (i,field,val) => setItems(p=>p.map((r,x)=>x===i?{...r,[field]:val}:r));
+      const rowTotal = (r) => (parseFloat(r.freight)||0)+(parseFloat(r.fuel_surcharge)||0)+(parseFloat(r.navcan)||0);
+      const grandTotal = items.reduce((s,r)=>s+rowTotal(r),0);
+      const subsidyTotal = grandTotal * 0.5;
+      return (
+        <div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.6}}>
+            Enter each freight waybill below. Claim amounts should be <strong>prior to GST</strong>. All original waybills must be clearly labelled "Fish" or "Shellfish" and included with your application package.
+          </div>
+          {items.map((row,i)=>(
+            <div key={i} style={{background:i%2===0?"#fff":C.snow,border:`1.5px solid ${C.line}`,borderRadius:10,padding:"14px 16px",marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{fontSize:12,fontWeight:700,color:C.teal}}>Waybill #{i+1}</div>
+                <button onClick={()=>remove(i)} style={{background:"none",border:`1.5px solid ${C.line}`,borderRadius:6,color:C.muted,fontSize:14,cursor:"pointer",padding:"2px 8px"}}>×</button>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                <div><div style={{fontSize:10,fontWeight:600,color:C.muted,marginBottom:3,textTransform:"uppercase"}}>Date</div><Inp type="date" value={row.date} onChange={e=>update(i,"date",e.target.value)} style={{fontSize:13,padding:"8px 10px"}}/></div>
+                <div><div style={{fontSize:10,fontWeight:600,color:C.muted,marginBottom:3,textTransform:"uppercase"}}>Waybill #</div><Inp value={row.waybill_num} onChange={e=>update(i,"waybill_num",e.target.value)} placeholder="WB-XXXXX" style={{fontSize:13,padding:"8px 10px"}}/></div>
+                <div><div style={{fontSize:10,fontWeight:600,color:C.muted,marginBottom:3,textTransform:"uppercase"}}>Final Destination</div>
+                  <Sel value={row.destination} onChange={e=>update(i,"destination",e.target.value)} style={{fontSize:13,padding:"8px 10px"}}>
+                    <option value="">— Select —</option>
+                    {GATEWAY_CITIES.map(c=><option key={c} value={c}>{c}</option>)}
+                  </Sel>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>
+                <div><div style={{fontSize:10,fontWeight:600,color:C.muted,marginBottom:3,textTransform:"uppercase"}}>Freight ($)</div><Inp type="number" value={row.freight} onChange={e=>update(i,"freight",e.target.value)} placeholder="0.00" style={{fontSize:13,padding:"8px 10px",textAlign:"right"}}/></div>
+                <div><div style={{fontSize:10,fontWeight:600,color:C.muted,marginBottom:3,textTransform:"uppercase"}}>Fuel Surchg. ($)</div><Inp type="number" value={row.fuel_surcharge} onChange={e=>update(i,"fuel_surcharge",e.target.value)} placeholder="0.00" style={{fontSize:13,padding:"8px 10px",textAlign:"right"}}/></div>
+                <div><div style={{fontSize:10,fontWeight:600,color:C.muted,marginBottom:3,textTransform:"uppercase"}}>NavCan ($)</div><Inp type="number" value={row.navcan} onChange={e=>update(i,"navcan",e.target.value)} placeholder="0.00" style={{fontSize:13,padding:"8px 10px",textAlign:"right"}}/></div>
+                <div><div style={{fontSize:10,fontWeight:600,color:C.muted,marginBottom:3,textTransform:"uppercase"}}>Total Cost</div><div style={{padding:"8px 10px",background:C.ice,borderRadius:8,fontSize:13,fontWeight:700,color:C.ink,textAlign:"right"}}>${rowTotal(row).toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2})}</div></div>
+                <div><div style={{fontSize:10,fontWeight:600,color:C.gold,marginBottom:3,textTransform:"uppercase"}}>50% Subsidy</div><div style={{padding:"8px 10px",background:"#FFF8EE",borderRadius:8,fontSize:13,fontWeight:700,color:C.gold,textAlign:"right"}}>${(rowTotal(row)*0.5).toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2})}</div></div>
+              </div>
+            </div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
+            <button onClick={add} style={{background:"none",border:`1.5px dashed ${C.teal}`,borderRadius:8,color:C.teal,fontSize:13,fontWeight:700,padding:"8px 16px",cursor:"pointer"}}>+ Add Waybill</button>
+            {items.length>0&&<div style={{display:"flex",gap:20,fontSize:14,fontWeight:700}}>
+              <span>Total: <span style={{color:C.ink}}>${grandTotal.toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></span>
+              <span>Subsidy Claimed: <span style={{color:C.gold}}>${subsidyTotal.toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></span>
+            </div>}
+          </div>
+          {error&&<div style={{color:C.danger,fontSize:12,marginTop:6}}>{error}</div>}
+        </div>
+      );
+    }
+
+    // ── Charter Items ─────────────────────────────────────────
+    function CharterItems({items,setItems}) {
+      const add = () => setItems(p=>[...p,{date:"",invoice:"",amount:""}]);
+      const remove = (i) => setItems(p=>p.filter((_,x)=>x!==i));
+      const update = (i,field,val) => setItems(p=>p.map((r,x)=>x===i?{...r,[field]:val}:r));
+      const total = items.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
+      return (
+        <div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.6}}>
+            If your commercial fishery required air charter flights, enter the details and associated invoice amounts below. Include original invoices with your application.
+          </div>
+          {items.map((row,i)=>(
+            <div key={i} style={{display:"grid",gridTemplateColumns:"140px 1fr 150px 36px",gap:8,marginBottom:8}}>
+              <Inp type="date" value={row.date} onChange={e=>update(i,"date",e.target.value)} style={{fontSize:13,padding:"8px 10px"}}/>
+              <Inp value={row.invoice} onChange={e=>update(i,"invoice",e.target.value)} placeholder="Invoice # or reference" style={{fontSize:13,padding:"8px 10px"}}/>
+              <Inp type="number" value={row.amount} onChange={e=>update(i,"amount",e.target.value)} placeholder="Amount ($)" style={{fontSize:13,padding:"8px 10px",textAlign:"right"}}/>
+              <button onClick={()=>remove(i)} style={{background:"none",border:`1.5px solid ${C.line}`,borderRadius:8,color:C.muted,fontSize:18,cursor:"pointer"}}>×</button>
+            </div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
+            <button onClick={add} style={{background:"none",border:`1.5px dashed ${C.teal}`,borderRadius:8,color:C.teal,fontSize:13,fontWeight:700,padding:"8px 16px",cursor:"pointer"}}>+ Add Charter Flight</button>
+            {items.length>0&&total>0&&<div style={{fontSize:14,fontWeight:700}}>Charter Total: <span style={{color:C.gold}}>${total.toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Document Request Presets ──────────────────────────────
+    const DOC_REQUEST_PRESETS = [
+      "Corrected/clear copy of freight waybill",
+      "Original invoice from freight carrier",
+      "Waybill labelled 'Fish' or 'Shellfish'",
+      "Charter flight invoice with dates",
+      "Proof of DFO commercial fishing licence",
+      "Proof of Nunavut residency",
+      "Business registration certificate",
+      "Freight summary spreadsheet",
+      "Proof of other funding sources sought",
+      "Other (specify below)",
+    ];
+
+    // ── MessageThread ─────────────────────────────────────────
+    function MessageThread({messages, colors, isAdmin, onResolve}) {
+      if (!messages || messages.length === 0) return null;
+      const sorted = [...messages].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+      const C = colors;
+      const statusStyles = {
+        pending: {bg:"#FFF3E0",border:"#F5A623",icon:"⏳",label:"Action Required",color:"#B8720A"},
+        resolved: {bg:"#E8F5E9",border:"#3BAE8E",icon:"✅",label:"Resolved",color:"#2A7D6B"},
+        read: {bg:"#F0F7FF",border:"#B8D4F0",icon:"📨",label:"Sent",color:"#2980B9"},
+      };
+      return (
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {sorted.map(msg => {
+            const st = statusStyles[msg.status] || statusStyles.read;
+            const isDocReq = msg.type === "doc_request";
+            const date = new Date(msg.timestamp);
+            const dateStr = date.toLocaleDateString("en-CA",{month:"short",day:"numeric",year:"numeric"});
+            const timeStr = date.toLocaleTimeString("en-CA",{hour:"2-digit",minute:"2-digit"});
+            return (
+              <div key={msg.id} style={{border:`1.5px solid ${st.border}40`,borderRadius:10,overflow:"hidden",background:st.bg}}>
+                {/* Header */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderBottom:`1px solid ${st.border}30`,flexWrap:"wrap",gap:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:14}}>{st.icon}</span>
+                    <span style={{fontSize:12,fontWeight:700,color:st.color,textTransform:"uppercase",letterSpacing:".05em"}}>{isDocReq ? "Document Request" : msg.type === "question" ? "Question" : "Message"}</span>
+                    <span style={{fontSize:11,fontWeight:600,color:C.muted,padding:"2px 8px",background:"#fff",borderRadius:10,border:`1px solid ${C.line}`}}>{st.label}</span>
+                  </div>
+                  <div style={{fontSize:11,color:C.muted}}>{msg.sender && <strong>{msg.sender}</strong>}{msg.sender && " · "}{dateStr} {timeStr}</div>
+                </div>
+                {/* Body */}
+                <div style={{padding:"12px 14px"}}>
+                  <div style={{fontSize:13,color:C.ink,lineHeight:1.65}}>{msg.text}</div>
+                  {/* Requested docs checklist */}
+                  {isDocReq && msg.documents && msg.documents.length > 0 && (
+                    <div style={{marginTop:12,background:"#fff",borderRadius:8,border:`1px solid ${st.border}30`,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,fontWeight:700,color:C.gold,textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>Documents Requested</div>
+                      {msg.documents.map((doc,i) => (
+                        <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:i<msg.documents.length-1?`1px solid ${C.line}`:"none"}}>
+                          <span style={{fontSize:14}}>{msg.status==="resolved"?"✅":"📄"}</span>
+                          <span style={{fontSize:12,color:C.ink,fontWeight:500}}>{doc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Admin: mark resolved button */}
+                  {isAdmin && msg.status === "pending" && onResolve && (
+                    <div style={{marginTop:10,display:"flex",gap:8,justifyContent:"space-between",alignItems:"center"}}>
+                      <div style={{fontSize:11,color:st.color,fontWeight:600,fontStyle:"italic"}}>Awaiting response from applicant</div>
+                      <button onClick={()=>onResolve(msg.id)} style={{padding:"5px 14px",borderRadius:6,border:`1.5px solid ${C.mint}`,background:"#E8F5E9",color:"#2A7D6B",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>✓ Mark Resolved</button>
+                    </div>
+                  )}
+                  {/* Applicant: guidance */}
+                  {!isAdmin && msg.status === "pending" && (
+                    <div style={{marginTop:10,background:"#fff",borderRadius:6,padding:"8px 12px",border:`1px solid ${C.gold}30`,fontSize:12,color:"#7a5200",lineHeight:1.5}}>
+                      📧 Please email the requested documents or information to <strong>fisheries@gov.nu.ca</strong>. Reference your application code in the subject line.
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // ── MessageComposer ───────────────────────────────────────
+    function MessageComposer({colors, onSend}) {
+      const C = colors;
+      const [msgType, setMsgType] = useState("doc_request");
+      const [text, setText] = useState("");
+      const [selectedDocs, setSelectedDocs] = useState([]);
+      const [customDoc, setCustomDoc] = useState("");
+      const [expanded, setExpanded] = useState(false);
+
+      const toggleDoc = (doc) => {
+        setSelectedDocs(prev => prev.includes(doc) ? prev.filter(d => d !== doc) : [...prev, doc]);
+      };
+
+      const addCustomDoc = () => {
+        if (customDoc.trim() && !selectedDocs.includes(customDoc.trim())) {
+          setSelectedDocs(prev => [...prev, customDoc.trim()]);
+          setCustomDoc("");
+        }
+      };
+
+      const handleSend = () => {
+        if (!text.trim()) return;
+        const msg = {
+          id: "msg-" + Date.now(),
+          type: msgType,
+          from: "admin",
+          sender: "Admin",
+          text: text.trim(),
+          documents: msgType === "doc_request" ? selectedDocs : [],
+          status: "pending",
+          timestamp: new Date().toISOString(),
+        };
+        onSend(msg);
+        setText("");
+        setSelectedDocs([]);
+        setCustomDoc("");
+        setExpanded(false);
+      };
+
+      if (!expanded) {
+        return (
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setExpanded(true);setMsgType("doc_request");}} style={{flex:1,background:"#FFF8EE",border:`1.5px solid ${C.gold}40`,borderRadius:8,padding:"10px 14px",cursor:"pointer",fontSize:13,fontWeight:700,color:C.gold,display:"flex",alignItems:"center",gap:8,justifyContent:"center"}}>
+              📄 Request Documents
+            </button>
+            <button onClick={()=>{setExpanded(true);setMsgType("question");}} style={{flex:1,background:"#F0F7FF",border:`1.5px solid #B8D4F0`,borderRadius:8,padding:"10px 14px",cursor:"pointer",fontSize:13,fontWeight:700,color:C.sky,display:"flex",alignItems:"center",gap:8,justifyContent:"center"}}>
+              ❓ Ask Question
+            </button>
+            <button onClick={()=>{setExpanded(true);setMsgType("message");}} style={{flex:1,background:C.ice,border:`1.5px solid ${C.line}`,borderRadius:8,padding:"10px 14px",cursor:"pointer",fontSize:13,fontWeight:700,color:C.teal,display:"flex",alignItems:"center",gap:8,justifyContent:"center"}}>
+              💬 Send Note
+            </button>
+          </div>
+        );
+      }
+
+      const typeLabels = {doc_request:"Request Documents",question:"Ask a Question",message:"Send a Note"};
+      const typeColors = {doc_request:C.gold,question:C.sky,message:C.teal};
+
+      return (
+        <div style={{border:`1.5px solid ${typeColors[msgType]}40`,borderRadius:10,overflow:"hidden"}}>
+          <div style={{background:msgType==="doc_request"?"#FFF8EE":msgType==="question"?"#F0F7FF":C.ice,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{display:"flex",gap:6}}>
+              {Object.entries(typeLabels).map(([k,v])=>(
+                <button key={k} onClick={()=>setMsgType(k)} style={{padding:"4px 12px",borderRadius:6,border:msgType===k?`1.5px solid ${typeColors[k]}`:`1.5px solid transparent`,background:msgType===k?"#fff":"transparent",fontSize:11,fontWeight:700,color:msgType===k?typeColors[k]:C.muted,cursor:"pointer"}}>{v}</button>
+              ))}
+            </div>
+            <button onClick={()=>setExpanded(false)} style={{background:"none",border:"none",color:C.muted,fontSize:18,cursor:"pointer",lineHeight:1}}>×</button>
+          </div>
+
+          <div style={{padding:"14px"}}>
+            {/* Doc request: checklist */}
+            {msgType === "doc_request" && (
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.gold,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Select Documents to Request</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+                  {DOC_REQUEST_PRESETS.filter(d=>d!=="Other (specify below)").map(doc=>(
+                    <button key={doc} onClick={()=>toggleDoc(doc)} style={{padding:"5px 12px",borderRadius:6,border:`1.5px solid ${selectedDocs.includes(doc)?C.gold:C.line}`,background:selectedDocs.includes(doc)?"#FFF8EE":"#fff",fontSize:11,fontWeight:selectedDocs.includes(doc)?700:500,color:selectedDocs.includes(doc)?C.gold:C.muted,cursor:"pointer"}}>{selectedDocs.includes(doc)?"✓ ":""}{doc}</button>
+                  ))}
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <Inp value={customDoc} onChange={e=>setCustomDoc(e.target.value)} placeholder="Add custom document request…" onKeyDown={e=>e.key==="Enter"&&addCustomDoc()} style={{flex:1,fontSize:12,padding:"7px 10px"}}/>
+                  <button onClick={addCustomDoc} style={{padding:"7px 14px",borderRadius:6,border:`1.5px solid ${C.gold}`,background:"#FFF8EE",color:C.gold,fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Add</button>
+                </div>
+                {selectedDocs.length > 0 && (
+                  <div style={{marginTop:10,fontSize:12,color:C.gold,fontWeight:600}}>{selectedDocs.length} document{selectedDocs.length>1?"s":""} selected</div>
+                )}
+              </div>
+            )}
+
+            {/* Message body */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>
+                {msgType==="doc_request"?"Explain what is needed and why":"Message to applicant"}
+              </div>
+              <Txta value={text} onChange={e=>setText(e.target.value)} placeholder={msgType==="doc_request"?"e.g. Waybill WB-44821 is partially illegible. Please provide a clear copy…":msgType==="question"?"e.g. Can you confirm whether the charter flight was exclusively for fish transport?":"e.g. Your application has been forwarded to the review committee…"} style={{minHeight:80,fontSize:13}}/>
+            </div>
+
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:11,color:C.muted}}>Visible to applicant on status page</div>
+              <Btn onClick={handleSend} style={{background:typeColors[msgType],fontSize:13,padding:"8px 20px"}}>
+                {msgType==="doc_request"?"📄 Send Request":msgType==="question"?"❓ Send Question":"💬 Send Note"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Apply View ────────────────────────────────────────────
+    function genCode(c) {
+      const p=c?c.slice(0,3).toUpperCase().replace(/[^A-Z]/g,"X"):"GEN";
+      const n=Math.floor(1000+Math.random()*9000);
+      const a=String.fromCharCode(65+Math.floor(Math.random()*26))+String.fromCharCode(65+Math.floor(Math.random()*26));
+      return `${p}${String(n)[0]}${a[0]}-${a[1]}${String(n).slice(1)}`;
+    }
+
+    function ApplyView({demoApps,setDemoApps}) {
+      const INIT = {resident:"",applicantType:"",org:"",community:"",contact:"",email:"",phone:"",fax:"",addr:"",businessReg:"",fishType:"",otherFunding:"",otherFundingDetails:""};
+      const [form,setForm] = useState(INIT);
+      const [waybills,setWaybills] = useState([{date:"",waybill_num:"",destination:"",freight:"",fuel_surcharge:"",navcan:""}]);
+      const [charters,setCharters] = useState([]);
+      const [waybillFiles,setWaybillFiles] = useState(null);
+      const [invoiceFile,setInvoiceFile] = useState(null);
+      const [errors,setErrors] = useState({});
+      const [loading,setLoading] = useState(false);
+      const [submitted,setSubmitted] = useState(null);
+      const [apiErr,setApiErr] = useState("");
+      const fileRef1 = useRef(null);
+      const fileRef2 = useRef(null);
+      const f = (k,v) => setForm(p=>({...p,[k]:v}));
+
+      const rowTotal = (r) => (parseFloat(r.freight)||0)+(parseFloat(r.fuel_surcharge)||0)+(parseFloat(r.navcan)||0);
+      const waybillGrandTotal = waybills.reduce((s,r)=>s+rowTotal(r),0);
+      const charterTotal = charters.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
+      const totalEligible = waybillGrandTotal + charterTotal;
+      const totalSubsidy = totalEligible * 0.5;
+      const region = REGIONS[form.community] || "";
+
+      const validate = () => {
+        const e={};
+        if (!form.resident) e.resident="Required";
+        if (!form.applicantType) e.applicantType="Required";
+        if (!form.org.trim()) e.org="Required";
+        if (!form.community) e.community="Required";
+        if (!form.contact.trim()) e.contact="Required";
+        if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email="Valid email required";
+        if (!form.addr.trim()) e.addr="Required";
+        if (!form.fishType) e.fishType="Required";
+        const validWaybills=waybills.filter(r=>r.waybill_num.trim()&&parseFloat(r.freight)>0);
+        if(validWaybills.length===0&&charters.filter(r=>parseFloat(r.amount)>0).length===0) e.waybills="At least one waybill or charter entry is required";
+        if (!form.otherFunding) e.otherFunding="Required";
+        return e;
+      };
+
+      const handleSubmit = async () => {
+        const e=validate();
+        if (Object.keys(e).length) { setErrors(e); window.scrollTo({top:0,behavior:"smooth"}); return; }
+        setLoading(true); setApiErr("");
+        const code=genCode(form.community);
+        const id=`CFFS-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+        const today=new Date().toISOString().split("T")[0];
+        const validWaybills=waybills.filter(r=>r.waybill_num.trim()&&parseFloat(r.freight)>0).map(r=>({...r,total:rowTotal(r),subsidy:rowTotal(r)*0.5}));
+        const validCharters=charters.filter(r=>parseFloat(r.amount)>0);
+        try {
+          const payload={id,code,is_nunavut_resident:form.resident,applicant_type:form.applicantType,org:form.org,community:form.community,region,contact:form.contact,email:form.email,phone:form.phone,fax:form.fax,business_reg:form.businessReg,address:form.addr,fish_type:form.fishType,waybills:JSON.stringify(validWaybills),charters:JSON.stringify(validCharters),total_freight:totalEligible,total_subsidy:totalSubsidy,other_funding_sought:form.otherFunding,other_funding_details:form.otherFundingDetails,stage:"received",notes:"",submitted:today};
+          if (IS_DEMO) setDemoApps(p=>[...p,{...payload,waybills:validWaybills,charters:validCharters}]);
+          else await submitApplication(payload);
+          setSubmitted({id,code,subsidy:totalSubsidy}); setForm(INIT); setWaybills([{date:"",waybill_num:"",destination:"",freight:"",fuel_surcharge:"",navcan:""}]); setCharters([]); setErrors({});
+          if(fileRef1.current)fileRef1.current.value="";
+          if(fileRef2.current)fileRef2.current.value="";
+        } catch(err) { setApiErr(err.message); }
+        finally { setLoading(false); }
+      };
+
+      if (submitted) return (
+        <div style={{maxWidth:560,margin:"0 auto"}}>
+          <Card style={{textAlign:"center",padding:"48px 36px"}}>
+            <div style={{fontSize:52,marginBottom:16}}>🎉</div>
+            <div style={{fontSize:22,fontWeight:800,color:C.forest,marginBottom:10}}>Application Submitted!</div>
+            <div style={{color:C.muted,marginBottom:28,lineHeight:1.6}}>Your freight subsidy application has been received. Save your access code — you will need it to check your status.</div>
+            <div style={{background:C.ice,borderRadius:12,padding:"20px 28px",marginBottom:20,border:`2px dashed ${C.teal}`}}>
+              <Lbl c="Your Secure Access Code"/>
+              <div style={{fontSize:34,fontWeight:900,color:C.forest,letterSpacing:"0.12em",fontFamily:"monospace"}}>{submitted.code}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:6}}>{submitted.id}</div>
+            </div>
+            <div style={{background:"#FFF8EE",borderRadius:10,padding:"16px 20px",marginBottom:24,border:`1.5px solid ${C.gold}30`}}>
+              <div style={{fontSize:13,fontWeight:700,color:C.gold,marginBottom:4}}>Subsidy Claimed</div>
+              <div style={{fontSize:28,fontWeight:900,color:C.gold,fontFamily:"monospace"}}>${submitted.subsidy.toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:4}}>Up to 50% of eligible freight costs · subject to approval & regional allocation</div>
+            </div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:24,background:C.snow,borderRadius:8,padding:14,textAlign:"left",lineHeight:1.7}}>
+              🔒 <strong>Your personal information is protected</strong> under the <em>Access to Information and Protection of Privacy Act</em>.<br/><br/>
+              💵 Approved applicants receive a <strong>single lump sum payment</strong>.<br/><br/>
+              📞 Questions? Contact us at <strong>fisheries@gov.nu.ca</strong>
+            </div>
+            <Btn onClick={()=>setSubmitted(null)}>Submit Another Application</Btn>
+          </Card>
+        </div>
+      );
+
+      const errCount = Object.keys(errors).length;
+
+      return (
+        <div style={{maxWidth:780,margin:"0 auto"}}>
+          {IS_DEMO&&<DemoBanner/>}
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:22,fontWeight:800,color:C.forest}}>Freight Subsidy Application</div>
+            <div style={{color:C.muted,marginTop:4,fontSize:14}}>Commercial Fisheries Freight Subsidy — Department of Community Services</div>
+          </div>
+
+          {errCount>0&&<div style={{background:"#fdf0ef",border:`1.5px solid ${C.danger}`,borderRadius:10,padding:"14px 18px",marginBottom:24,fontSize:13,color:C.danger}}>⚠ Please correct <strong>{errCount} {errCount===1?"field":"fields"}</strong> before submitting.</div>}
+
+          {/* Policy Info Banner */}
+          <Card style={{marginBottom:20,background:"#F0F7FF",borderColor:"#B8D4F0"}}>
+            <div style={{fontSize:13,color:C.navy,lineHeight:1.7}}>
+              <strong>📋 About This Subsidy:</strong> This program subsidizes <strong>up to 50%</strong> of eligible freight costs for shipping commercially harvested fish from Nunavut to Southern Gateway Cities (Ottawa, Montreal, Winnipeg, Yellowknife, Edmonton) and between Nunavut communities. Eligible expenses include freight charges (before GST), fuel surcharges, Nav Canada surcharges, and charter flight expenses.<br/><br/>
+              <strong>Before applying:</strong> Applicants are required to seek freight subsidy funding from other available sources, when possible. Applicants can apply <strong>once per fiscal year</strong> (April 1 – March 31).
+            </div>
+          </Card>
+
+          {/* Section 1 — Residency */}
+          <Card style={{marginBottom:20,borderLeft:`4px solid ${C.teal}`}}>
+            <SecTitle color={C.teal}>Residency &amp; Eligibility</SecTitle>
+            <Fld label="Are you a Nunavut Resident?" error={errors.resident} hint="A Nunavut Resident has lived in Nunavut for the last 12 months and maintains a physical residence in the territory.">
+              <RadioGroup name="resident" value={form.resident} onChange={v=>f("resident",v)} options={[["yes","Yes"],["no","No"]]}/>
+            </Fld>
+            <Fld label="Applicant Type" error={errors.applicantType}>
+              <RadioGroup name="applicantType" value={form.applicantType} onChange={v=>f("applicantType",v)} options={APPLICANT_TYPES}/>
+            </Fld>
+          </Card>
+
+          {/* Section 2 — Applicant Info */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle>Applicant Information</SecTitle>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
+              <div style={{gridColumn:"1/-1"}}>
+                <Fld label="Organization / Applicant Name" error={errors.org}><Inp value={form.org} onChange={e=>f("org",e.target.value)} placeholder="e.g. Pangnirtung Fisheries Ltd."/></Fld>
+              </div>
+              <Fld label="Primary Contact Person" error={errors.contact}><Inp value={form.contact} onChange={e=>f("contact",e.target.value)} placeholder="Full name"/></Fld>
+              <Fld label="Community" error={errors.community}>
+                <Sel value={form.community} onChange={e=>f("community",e.target.value)}>
+                  <option value="">— Select community —</option>
+                  {COMMUNITIES.map(c=><option key={c} value={c}>{c}</option>)}
+                </Sel>
+              </Fld>
+              {form.community&&<div style={{gridColumn:"1/-1",marginBottom:14}}><div style={{display:"inline-block",background:C.ice,borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:600,color:C.teal}}>Region: {region}</div></div>}
+              <Fld label="Email Address" error={errors.email}><Inp type="email" value={form.email} onChange={e=>f("email",e.target.value)} placeholder="name@organization.ca"/></Fld>
+              <Fld label="Phone Number"><Inp value={form.phone} onChange={e=>f("phone",e.target.value)} placeholder="867-XXX-XXXX"/></Fld>
+              <Fld label="Fax Number (optional)"><Inp value={form.fax} onChange={e=>f("fax",e.target.value)} placeholder="867-XXX-XXXX"/></Fld>
+              <Fld label="Business Registration # (if applicable)"><Inp value={form.businessReg} onChange={e=>f("businessReg",e.target.value)} placeholder="e.g. NU-20198432"/></Fld>
+            </div>
+            <Fld label="Mailing Address" error={errors.addr}><Inp value={form.addr} onChange={e=>f("addr",e.target.value)} placeholder="e.g. P.O. Box 240, Pangnirtung, NU X0A 0R0"/></Fld>
+          </Card>
+
+          {/* Section 3 — Fish Type */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle>Harvest Information</SecTitle>
+            <Fld label="Species of Commercially Harvested Fish" error={errors.fishType} hint="Select the primary species being shipped. Must be licensed for commercial or exploratory harvest by DFO.">
+              <Sel value={form.fishType} onChange={e=>f("fishType",e.target.value)}>
+                <option value="">— Select species —</option>
+                {FISH_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+              </Sel>
+            </Fld>
+          </Card>
+
+          {/* Section 4 — Waybills */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle color={C.gold}>Part B — Freight Waybills</SecTitle>
+            <WaybillItems items={waybills} setItems={setWaybills} error={errors.waybills}/>
+          </Card>
+
+          {/* Section 5 — Charters */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle color={C.gold}>Part C — Air Charter for Fly-In Fisheries</SecTitle>
+            <CharterItems items={charters} setItems={setCharters}/>
+          </Card>
+
+          {/* Section 6 — Summary & Other Funding */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle>Claim Summary &amp; Other Funding</SecTitle>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:20}}>
+              <div style={{background:C.snow,borderRadius:10,padding:"16px 14px",textAlign:"center",border:`1.5px solid ${C.line}`}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Total Freight</div>
+                <div style={{fontSize:22,fontWeight:900,color:C.ink}}>${waybillGrandTotal.toLocaleString("en-CA",{minimumFractionDigits:2})}</div>
+              </div>
+              <div style={{background:C.snow,borderRadius:10,padding:"16px 14px",textAlign:"center",border:`1.5px solid ${C.line}`}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Total Charter</div>
+                <div style={{fontSize:22,fontWeight:900,color:C.ink}}>${charterTotal.toLocaleString("en-CA",{minimumFractionDigits:2})}</div>
+              </div>
+              <div style={{background:"#FFF8EE",borderRadius:10,padding:"16px 14px",textAlign:"center",border:`1.5px solid ${C.gold}30`}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.gold,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>50% Subsidy Claimed</div>
+                <div style={{fontSize:22,fontWeight:900,color:C.gold}}>${totalSubsidy.toLocaleString("en-CA",{minimumFractionDigits:2})}</div>
+              </div>
+            </div>
+
+            <Fld label="Have you sought freight subsidy funding from other sources?" error={errors.otherFunding} hint="Per policy, applicants are required to seek freight subsidy funding from other available sources before applying.">
+              <RadioGroup name="otherFunding" value={form.otherFunding} onChange={v=>f("otherFunding",v)} options={[["yes","Yes"],["no","No"],["na","Not Applicable"]]}/>
+            </Fld>
+            {form.otherFunding==="yes"&&(
+              <Fld label="Please describe which sources and outcomes"><Txta value={form.otherFundingDetails} onChange={e=>f("otherFundingDetails",e.target.value)} placeholder="e.g. Applied to NTI freight program — partial funding received…" style={{minHeight:70}}/></Fld>
+            )}
+          </Card>
+
+          {/* Supporting Docs */}
+          <Card style={{marginBottom:20}}>
+            <SecTitle>Supporting Documents</SecTitle>
+            <div style={{fontSize:12,color:C.muted,marginBottom:16,lineHeight:1.6}}>
+              Please attach copies of: invoices for amounts being claimed, all freight waybills clearly labelled "Fish" or "Shellfish", and charter flight invoices with dates.
+            </div>
+            <Fld label="Freight Waybills & Invoices (PDF, JPG, PNG)">
+              <input ref={fileRef1} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={e=>setWaybillFiles(e.target.files)}/>
+              {waybillFiles&&waybillFiles.length>0&&<div style={{marginTop:6,fontSize:12,color:C.teal,fontWeight:600}}>📎 {waybillFiles.length} file(s) selected</div>}
+              {IS_DEMO&&waybillFiles&&<div style={{fontSize:11,color:C.muted,marginTop:4}}>Demo mode: files selected but not uploaded to server.</div>}
+            </Fld>
+            <Fld label="Charter Flight Invoices (PDF, JPG, PNG — optional)">
+              <input ref={fileRef2} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={e=>setInvoiceFile(e.target.files)}/>
+              {invoiceFile&&invoiceFile.length>0&&<div style={{marginTop:6,fontSize:12,color:C.teal,fontWeight:600}}>📎 {invoiceFile.length} file(s) selected</div>}
+            </Fld>
+          </Card>
+
+          {/* Declaration */}
+          <Card style={{marginBottom:28,background:C.ice}}>
+            <div style={{fontSize:13,color:C.muted,lineHeight:1.8}}>
+              🔒 <strong>Privacy Notice:</strong> Personal information collected on this form is used solely for administering the Commercial Fisheries Freight Subsidy and is protected under the <em>Access to Information and Protection of Privacy Act</em> (ATIPPA). Approved funding recipients must ensure compliance with section 3 of the <em>Inuit Language Protection Act</em> (Nunavut).<br/><br/>
+              <strong>Declaration:</strong> I confirm that the information given in this application is, to the best of my knowledge and ability, complete, true and correct. I certify that financial assistance from the Department of Community Services is a significant factor in the decision to proceed with this request. I certify that neither the applicant nor its officers are involved with any litigation, or in any proceedings before any government board, agency or tribunal which have not been disclosed. I agree to provide financial and audit results as required.
+            </div>
+          </Card>
+
+          <Err msg={apiErr}/>
+          <div style={{display:"flex",gap:12,justifyContent:"flex-end",marginTop:16}}>
+            <Btn variant="ghost" onClick={()=>{setForm(INIT);setWaybills([{date:"",waybill_num:"",destination:"",freight:"",fuel_surcharge:"",navcan:""}]);setCharters([]);setErrors({});if(fileRef1.current)fileRef1.current.value="";if(fileRef2.current)fileRef2.current.value="";}}>Clear Form</Btn>
+            <Btn onClick={handleSubmit} loading={loading} style={{minWidth:180}}>Submit Application →</Btn>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Status View ───────────────────────────────────────────
+    function StatusView({demoApps}) {
+      const [code,setCode]=useState(""); const [result,setResult]=useState(null); const [err,setErr]=useState(""); const [loading,setLoading]=useState(false);
+      const lookup = async () => {
+        if(!code.trim())return; setLoading(true);setErr("");setResult(null);
+        try {
+          let found;
+          if (IS_DEMO) { const m=demoApps.find(a=>a.code.toUpperCase()===code.trim().toUpperCase()); found=m?{id:m.id,org:m.org,community:m.community,region:m.region,fish_type:m.fish_type,total_freight:m.total_freight,total_subsidy:m.total_subsidy,stage:m.stage,notes:m.notes,submitted:m.submitted,messages:m.messages||[]}:null; }
+          else found=await lookupStatus(code.trim());
+          if(found)setResult(found); else setErr("No application found for that code. Please check and try again.");
+        } catch(e){setErr("Unable to connect. Please try again in a moment.");}
+        finally{setLoading(false);}
+      };
+      const idx=result?STAGES.findIndex(s=>s.key===result.stage):-1;
+      const pct=result?Math.round(((idx+1)/STAGES.length)*100):0;
+      const pendingMsgs=result?.messages?.filter(m=>m.status==="pending")||[];
+      return (
+        <div style={{maxWidth:640,margin:"0 auto"}}>
+          {IS_DEMO&&<DemoBanner/>}
+          <div style={{marginBottom:24}}><div style={{fontSize:22,fontWeight:800,color:C.forest}}>Check Application Status</div><div style={{color:C.muted,marginTop:4,fontSize:14}}>Enter the access code from your confirmation.</div></div>
+          <Card style={{marginBottom:24}}>
+            <Lbl c="Application Access Code"/>
+            <div style={{display:"flex",gap:10}}><Inp value={code} onChange={e=>setCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&lookup()} placeholder="e.g. QIK3-PANQ" style={{fontFamily:"monospace",fontSize:18,letterSpacing:".08em",flex:1}}/><Btn onClick={lookup} loading={loading} style={{whiteSpace:"nowrap"}}>Look Up →</Btn></div>
+            {err&&<Err msg={err}/>}
+            {IS_DEMO&&<div style={{fontSize:12,color:C.muted,marginTop:10}}>💡 Demo codes: {["QIK3-PANQ","KIV7-RANI","KIT2-CAMB"].map((c,i)=><span key={c}>{i>0?", ":""}<span onClick={()=>setCode(c)} style={{color:C.teal,cursor:"pointer",textDecoration:"underline"}}>{c}</span></span>)}</div>}
+            <div style={{fontSize:12,color:C.muted,marginTop:10}}>🔒 Only your application stage and program notes are shown here. Personal and financial details are never displayed publicly.</div>
+          </Card>
+          {result&&(
+            <div>
+              {pendingMsgs.length>0&&(
+                <div style={{background:"#FDF0EF",border:`1.5px solid #C0392B40`,borderRadius:12,padding:"16px 20px",marginBottom:20}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                    <span style={{fontSize:18}}>⚠️</span>
+                    <div style={{fontSize:15,fontWeight:800,color:"#C0392B"}}>Action Required</div>
+                  </div>
+                  <div style={{fontSize:13,color:"#8B2020",lineHeight:1.6}}>
+                    The Fisheries &amp; Sealing Division has sent you <strong>{pendingMsgs.length} {pendingMsgs.length===1?"request":"requests"}</strong> that require your response. Please review the messages below and provide the requested information or documents to avoid delays in processing your application.
+                  </div>
+                </div>
+              )}
+              <Card style={{marginBottom:result.messages?.length>0?20:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:10}}>
+                  <div><div style={{fontSize:18,fontWeight:800,color:C.ink}}>{result.org}</div><div style={{fontSize:13,color:C.muted,marginTop:3}}>{result.community} · {result.region}</div></div>
+                  <div style={{textAlign:"right"}}><Tag color={STAGE_COLORS[result.stage]}>{STAGES[idx]?.label}</Tag><div style={{fontSize:11,color:C.muted,marginTop:5,fontFamily:"monospace"}}>{result.id}</div></div>
+                </div>
+                <div style={{marginBottom:22}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><Lbl c="Progress"/><span style={{fontSize:12,color:C.muted}}>{pct}% complete</span></div><div style={{height:7,background:C.line,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${C.teal},${C.mint})`,borderRadius:4}}/></div></div>
+                <Pipeline currentStage={result.stage}/>
+                <div style={{borderTop:`1.5px solid ${C.line}`,marginTop:24,paddingTop:20}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
+                    {[["Submitted",result.submitted],["Species",result.fish_type],["Subsidy Claimed","$"+Number(result.total_subsidy||0).toLocaleString()]].map(([k,v])=><div key={k}><Lbl c={k}/><div style={{fontSize:13,color:C.ink,fontWeight:600}}>{v}</div></div>)}
+                  </div>
+                  {result.notes&&<div style={{marginTop:16,background:C.ice,borderRadius:8,padding:"12px 14px",fontSize:13,color:C.muted,borderLeft:`3px solid ${C.teal}`}}><strong>Program Note:</strong> {result.notes}</div>}
+                </div>
+              </Card>
+              {result.messages&&result.messages.length>0&&(
+                <Card>
+                  <div style={{fontSize:14,fontWeight:800,color:C.forest,marginBottom:4}}>Messages from the Division</div>
+                  <div style={{fontSize:12,color:C.muted,marginBottom:14,lineHeight:1.5}}>These messages are from the Fisheries &amp; Sealing Division reviewing your application. If action is required, please email the requested documents or information to <strong>fisheries@gov.nu.ca</strong> with your application code in the subject line.</div>
+                  <MessageThread messages={result.messages} colors={C} isAdmin={false}/>
+                </Card>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Admin View ────────────────────────────────────────────
+    function AdminView({demoApps,setDemoApps}) {
+      const [session,setSession]=useState(null); const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [loginErr,setLoginErr]=useState(""); const [loginLoading,setLoginLoading]=useState(false);
+      const [apps,setApps]=useState([]); const [appsLoading,setAppsLoading]=useState(false); const [search,setSearch]=useState(""); const [filterStage,setFilterStage]=useState(""); const [filterRegion,setFilterRegion]=useState("");
+      const [selected,setSelected]=useState(null); const [newStage,setNewStage]=useState(""); const [note,setNote]=useState(""); const [saving,setSaving]=useState(false); const [saved,setSaved]=useState(false); const [saveErr,setSaveErr]=useState("");
+
+      const loadApps = useCallback(async (token) => { setAppsLoading(true); try { if(IS_DEMO)setApps(demoApps); else {const d=await fetchAllApps(token);setApps(d||[]);} } catch(e){console.error(e);} finally{setAppsLoading(false);} },[demoApps]);
+      React.useEffect(()=>{if(session?.isDemoSession)setApps(demoApps);},[demoApps,session]);
+
+      const handleLogin = async () => { setLoginLoading(true);setLoginErr(""); try { if(IS_DEMO){setSession({isDemoSession:true,user:{email:"demo@gov.nu.ca"}});setApps(demoApps);}else{const s=await adminSignIn(email,password);setSession(s);await loadApps(s.access_token);} } catch(e){setLoginErr(e.message);} finally{setLoginLoading(false);} };
+      const handleLogout = async () => { if(!IS_DEMO&&session?.access_token)await adminSignOut(session.access_token); setSession(null);setApps([]);setSelected(null); };
+      const openApp = (app) => { setSelected(app);setNewStage(app.stage);setNote(app.notes||"");setSaved(false);setSaveErr(""); };
+      const saveUpdate = async () => { if(!selected)return; setSaving(true);setSaveErr("");setSaved(false); try { const patch={stage:newStage,notes:note}; if(IS_DEMO){setDemoApps(p=>p.map(a=>a.id===selected.id?{...a,...patch}:a));setApps(p=>p.map(a=>a.id===selected.id?{...a,...patch}:a));}else{await updateApp(selected.id,patch,session.access_token);setApps(p=>p.map(a=>a.id===selected.id?{...a,...patch}:a));} setSelected(p=>({...p,...patch}));setSaved(true);setTimeout(()=>setSaved(false),3000); } catch(e){setSaveErr(e.message);} finally{setSaving(false);} };
+
+      const parseWaybills = (app) => { if(!app.waybills)return[]; if(Array.isArray(app.waybills))return app.waybills; try{return JSON.parse(app.waybills);}catch{return[];} };
+      const parseCharters = (app) => { if(!app.charters)return[]; if(Array.isArray(app.charters))return app.charters; try{return JSON.parse(app.charters);}catch{return[];} };
+
+      if (!session) return (
+        <div style={{maxWidth:420,margin:"60px auto"}}>
+          {IS_DEMO&&<DemoBanner/>}
+          <Card style={{padding:"40px 36px"}}>
+            <div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:36,marginBottom:12}}>🔐</div><div style={{fontSize:20,fontWeight:800,color:C.forest}}>Admin Access</div><div style={{color:C.muted,fontSize:13,marginTop:6}}>Fisheries &amp; Sealing Division · Dept. of Community Services</div></div>
+            {IS_DEMO?<div style={{background:C.ice,borderRadius:8,padding:16,fontSize:13,color:C.muted,marginBottom:20,textAlign:"center"}}>Demo mode — click Sign In to access the admin panel.</div>:<><Fld label="GN Email"><Inp type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="you@gov.nu.ca"/></Fld><Fld label="Password"><Inp type="password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••"/></Fld></>}
+            <Err msg={loginErr}/><Btn onClick={handleLogin} loading={loginLoading} style={{width:"100%",marginTop:8}}>Sign In</Btn>
+            {!IS_DEMO&&<div style={{fontSize:12,color:C.muted,marginTop:16,textAlign:"center"}}>Contact your system administrator if you need access.</div>}
+          </Card>
+        </div>
+      );
+
+      const filtered=apps.filter(a=>{const q=search.toLowerCase();const mQ=!q||[a.org,a.community,a.code,a.contact,a.fish_type].some(f=>f?.toLowerCase().includes(q));return mQ&&(!filterStage||a.stage===filterStage)&&(!filterRegion||a.region===filterRegion);});
+      const totalSubsidy=apps.reduce((s,a)=>s+Number(a.total_subsidy||0),0);
+      const byStage=k=>apps.filter(a=>a.stage===k).length;
+      const byRegion=r=>apps.filter(a=>a.region===r).reduce((s,a)=>s+Number(a.total_subsidy||0),0);
+
+      return (
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12}}>
+            <div><div style={{fontSize:22,fontWeight:800,color:C.forest}}>Admin Dashboard</div><div style={{fontSize:13,color:C.muted}}>Signed in as {session.user?.email}</div></div>
+            <Btn variant="ghost" onClick={handleLogout} style={{fontSize:12}}>Sign Out</Btn>
+          </div>
+          {IS_DEMO&&<DemoBanner/>}
+
+          {/* Stats Row */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:14,marginBottom:14}}>
+            {[["Total Applications",apps.length,C.ink],["Pending Review",byStage("received")+byStage("eligibility"),C.sky],["In Verification",byStage("assessment")+byStage("committee"),C.gold],["Doc Requests Out",apps.reduce((s,a)=>s+(a.messages||[]).filter(m=>m.status==="pending").length,0),C.danger],["Total Subsidy Claimed","$"+(totalSubsidy/1000).toFixed(1)+"K",C.teal]].map(([label,val,col])=>(
+              <Card key={label} style={{textAlign:"center",padding:"16px 12px"}}><div style={{fontSize:26,fontWeight:900,color:col}}>{val}</div><div style={{fontSize:11,color:C.muted,marginTop:4,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase"}}>{label}</div></Card>
+            ))}
+          </div>
+          {/* Regional Breakdown */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:24}}>
+            {["Qikiqtaaluk","Kivalliq","Kitikmeot"].map(r=>(
+              <Card key={r} style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div><div style={{fontSize:13,fontWeight:700,color:C.ink}}>{r}</div><div style={{fontSize:11,color:C.muted}}>{apps.filter(a=>a.region===r).length} app(s)</div></div>
+                <div style={{fontSize:16,fontWeight:900,color:C.gold}}>${(byRegion(r)/1000).toFixed(1)}K</div>
+              </Card>
+            ))}
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:selected?"1fr 420px":"1fr",gap:20,alignItems:"start"}}>
+            <div>
+              <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+                <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search org, community, code, species…" style={{flex:1,minWidth:200}}/>
+                <Sel value={filterRegion} onChange={e=>setFilterRegion(e.target.value)} style={{width:"auto",minWidth:140}}>
+                  <option value="">All Regions</option>
+                  <option value="Qikiqtaaluk">Qikiqtaaluk</option>
+                  <option value="Kivalliq">Kivalliq</option>
+                  <option value="Kitikmeot">Kitikmeot</option>
+                </Sel>
+                <Sel value={filterStage} onChange={e=>setFilterStage(e.target.value)} style={{width:"auto",minWidth:165}}>
+                  <option value="">All Stages</option>{STAGES.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
+                </Sel>
+              </div>
+              {appsLoading&&<div style={{color:C.muted,padding:"20px 0",textAlign:"center"}}>Loading applications…</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {!appsLoading&&filtered.length===0&&<div style={{color:C.muted,fontSize:14,padding:"20px 0",textAlign:"center"}}>No applications match your filters.</div>}
+                {filtered.map(app=>(
+                  <div key={app.id} onClick={()=>openApp(app)} style={{background:selected?.id===app.id?C.ice:"#fff",border:`1.5px solid ${selected?.id===app.id?C.teal:C.line}`,borderRadius:10,padding:"14px 18px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:14,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{app.org}</div>
+                      <div style={{fontSize:12,color:C.muted,marginTop:2}}>{app.community} · {app.region} · {app.fish_type||"—"}</div>
+                      <div style={{fontSize:11,color:C.muted,marginTop:2,fontFamily:"monospace"}}>{app.id} · {app.code}</div>
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0}}>
+                      <Tag color={STAGE_COLORS[app.stage]}>{STAGES.find(s=>s.key===app.stage)?.short}</Tag>
+                      <div style={{fontSize:12,fontWeight:700,color:C.gold}}>${Number(app.total_subsidy||0).toLocaleString()}</div>
+                      {(app.messages||[]).filter(m=>m.status==="pending").length>0&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"#FDF0EF",color:C.danger,border:`1px solid ${C.danger}30`}}>📄 {(app.messages||[]).filter(m=>m.status==="pending").length} pending</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {selected&&(
+              <Card style={{position:"sticky",top:20,padding:22,maxHeight:"90vh",overflowY:"auto"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
+                  <div><div style={{fontSize:15,fontWeight:800,color:C.ink,lineHeight:1.3}}>{selected.org}</div><div style={{fontSize:12,color:C.muted,marginTop:2,fontFamily:"monospace"}}>{selected.id}</div></div>
+                  <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
+                </div>
+
+                {[["Community",selected.community],["Region",selected.region],["Contact",selected.contact],["Email",selected.email],["Phone",selected.phone||"—"],["Address",selected.address||"—"],["Applicant Type",(APPLICANT_TYPES.find(t=>t[0]===selected.applicant_type)||["","—"])[1]],["Species",selected.fish_type],["Total Freight","$"+Number(selected.total_freight||0).toLocaleString()],["Subsidy Claimed","$"+Number(selected.total_subsidy||0).toLocaleString()],["Submitted",selected.submitted]].map(([k,v])=>(
+                  <div key={k} style={{marginBottom:10}}><Lbl c={k}/><div style={{fontSize:13,color:C.ink,wordBreak:"break-word"}}>{v}</div></div>
+                ))}
+
+                {parseWaybills(selected).length>0&&(
+                  <div style={{marginBottom:14}}>
+                    <Lbl c="Freight Waybills"/>
+                    <div style={{border:`1px solid ${C.line}`,borderRadius:8,overflow:"hidden"}}>
+                      {parseWaybills(selected).map((wb,i)=>(
+                        <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:i%2===0?"#fff":C.snow,fontSize:12,gap:8}}>
+                          <span style={{color:C.ink}}>{wb.waybill_num} → {wb.destination} ({wb.date})</span>
+                          <span style={{color:C.gold,fontWeight:700,whiteSpace:"nowrap"}}>${Number(wb.total||0).toLocaleString()}</span>
+                        </div>
+                      ))}
+                      <div style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:C.ice,fontSize:12,fontWeight:700,borderTop:`1px solid ${C.line}`}}>
+                        <span>Freight Total</span><span style={{color:C.gold}}>${parseWaybills(selected).reduce((s,w)=>s+Number(w.total||0),0).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {parseCharters(selected).length>0&&(
+                  <div style={{marginBottom:14}}>
+                    <Lbl c="Charter Flights"/>
+                    <div style={{border:`1px solid ${C.line}`,borderRadius:8,overflow:"hidden"}}>
+                      {parseCharters(selected).map((ch,i)=>(
+                        <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:i%2===0?"#fff":C.snow,fontSize:12}}>
+                          <span style={{color:C.ink}}>{ch.invoice||"Charter"} ({ch.date})</span>
+                          <span style={{color:C.gold,fontWeight:700}}>${Number(ch.amount||0).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{borderTop:`1.5px solid ${C.line}`,paddingTop:16,marginTop:4}}>
+                  <Fld label="Update Stage"><Sel value={newStage} onChange={e=>setNewStage(e.target.value)}>{STAGES.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</Sel></Fld>
+                  <Fld label="Program Note (visible to applicant)"><Txta value={note} onChange={e=>setNote(e.target.value)} placeholder="Optional note…" style={{minHeight:70}}/></Fld>
+                  <Err msg={saveErr}/>
+                  <Btn onClick={saveUpdate} loading={saving} style={{width:"100%",marginTop:saveErr?8:0}}>{saved?"✓ Saved!":"Save Update"}</Btn>
+                </div>
+
+                {/* ── Messages & Document Requests ── */}
+                <div style={{borderTop:`1.5px solid ${C.line}`,paddingTop:16,marginTop:16}}>
+                  <div style={{fontSize:13,fontWeight:700,color:C.gold,textTransform:"uppercase",letterSpacing:".08em",marginBottom:12}}>Messages &amp; Document Requests</div>
+                  <div style={{marginBottom:14}}>
+                    <MessageComposer colors={C} onSend={(msg)=>{
+                      const updated={...selected,messages:[...(selected.messages||[]),msg]};
+                      if(IS_DEMO){setDemoApps(p=>p.map(a=>a.id===selected.id?updated:a));setApps(p=>p.map(a=>a.id===selected.id?updated:a));}
+                      setSelected(updated);
+                    }}/>
+                  </div>
+                  {(selected.messages&&selected.messages.length>0)&&(
+                    <div>
+                      <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Message History ({selected.messages.length})</div>
+                      <MessageThread messages={selected.messages} colors={C} isAdmin={true} onResolve={(msgId)=>{
+                        const updatedMsgs = (selected.messages||[]).map(m=>m.id===msgId?{...m,status:"resolved"}:m);
+                        const updated = {...selected, messages:updatedMsgs};
+                        if(IS_DEMO){setDemoApps(p=>p.map(a=>a.id===selected.id?{...a,messages:updatedMsgs}:a));setApps(p=>p.map(a=>a.id===selected.id?{...a,messages:updatedMsgs}:a));}
+                        setSelected(updated);
+                      }}/>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Root ──────────────────────────────────────────────────
+    function CFFSPortal() {
+      const [tab,setTab]=useState("apply");
+      const [demoApps,setDemoApps]=useState(DEMO_APPS);
+      const NAV=[{key:"apply",label:"Apply",icon:"📋"},{key:"status",label:"Check Status",icon:"🔍"},{key:"admin",label:"Admin",icon:"⚙️"}];
+      return (
+        <div style={{minHeight:"100vh",background:C.snow,color:C.ink}}>
+          <div style={{background:C.forest,color:"#fff"}}>
+            <div style={{maxWidth:1100,margin:"0 auto",padding:"0 24px"}}>
+              <div style={{padding:"18px 0 0",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+                <div style={{background:C.navy,borderRadius:8,padding:"6px 10px",fontSize:18}}>🚢</div>
+                <div>
+                  <div style={{fontSize:13,letterSpacing:".12em",textTransform:"uppercase",color:"rgba(255,255,255,.55)",fontWeight:600}}>Government of Nunavut · Community Services</div>
+                  <div style={{fontSize:19,fontWeight:800,fontFamily:"'Lora',serif"}}>Commercial Fisheries Freight Subsidy</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:4,marginTop:16}}>
+                {NAV.map(n=><button key={n.key} onClick={()=>setTab(n.key)} style={{background:tab===n.key?"rgba(255,255,255,.12)":"transparent",border:"none",borderBottom:tab===n.key?`3px solid ${C.amber}`:"3px solid transparent",color:tab===n.key?"#fff":"rgba(255,255,255,.6)",padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:".04em"}}>{n.icon} {n.label}</button>)}
+              </div>
+            </div>
+          </div>
+
+          <div style={{maxWidth:1100,margin:"0 auto",padding:"36px 24px 60px"}}>
+            {tab==="apply"  &&<ApplyView  demoApps={demoApps} setDemoApps={setDemoApps}/>}
+            {tab==="status" &&<StatusView demoApps={demoApps}/>}
+            {tab==="admin"  &&<AdminView  demoApps={demoApps} setDemoApps={setDemoApps}/>}
+          </div>
+
+          <div style={{borderTop:`1.5px solid ${C.line}`,padding:"28px 24px",textAlign:"center",background:"#fff"}}>
+            <div style={{fontSize:12,color:C.muted,marginBottom:10}}>Fisheries &amp; Sealing Division · Department of Community Services · Government of Nunavut</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:4}}>P.O. Box 1000, Iqaluit, NU X0A 0H0</div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:8}}>Questions or concerns? Please contact us <strong>before submitting</strong>.</div>
+            <a href="mailto:fisheries@gov.nu.ca" style={{color:C.teal,fontSize:15,fontWeight:700,textDecoration:"none",letterSpacing:".02em"}}>✉ fisheries@gov.nu.ca</a>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<CFFSPortal/>);
+  </script>
+</body>
+</html>
